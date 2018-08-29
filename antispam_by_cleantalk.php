@@ -17,16 +17,14 @@
 if (!defined('IN_MYBB')){
 	die('This file cannot be accessed directly.');
 }
-const ENGINE = 'mybb-11';
+const ENGINE = 'mybb-12';
 $plugins->add_hook('newthread_do_newthread_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('newreply_do_newreply_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('editpost_do_editpost_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('member_do_register_start', 'antispam_by_cleantalk_regtrigger');
-$plugins->add_hook('member_register_start', 'reg_plugin_init');
-$plugins->add_hook('newreply_start', 'com_plugin_init');
-$plugins->add_hook('contact_start', 'com_plugin_init');
-$plugins->add_hook('admin_config_settings_change_commit', 'savesettings_trigger');
 $plugins->add_hook('contact_do_start', 'antispam_by_cleantalk_contacttrigger');
+$plugins->add_hook('global_start', 'antispam_by_cleantalk_setcookies');
+$plugins->add_hook('admin_config_settings_change_commit', 'savesettings_trigger');
 
 function savesettings_trigger()
 {
@@ -120,21 +118,12 @@ function antispam_by_cleantalk_info(){
 		"website" => "https://cleantalk.org/",
 		"author" => "CleanTalk",
 		"authorsite" => "https://cleantalk.org/",
-		"version" => "v1.1",
+		"version" => "v1.2",
 		"guid" => "",
 		"compatibility" => "18*"
 	);
 }
-function reg_plugin_init()
-{
-    if (!session_id()) session_start();
-    $_SESSION['ct_submit_reg_time'] = time();
-}
-function com_plugin_init()
-{
-    if (!session_id()) session_start();
-    $_SESSION['ct_submit_com_time'] = time();
-}
+
 function antispam_by_cleantalk_install(){
 	global $db;
 	$ap_group = Array(
@@ -252,157 +241,157 @@ function antispam_by_cleantalk_is_installed(){
 	}
 	return false;
 }
+function antispam_by_cleantalk_setcookies(){
+    global $mybb;
+
+    // Cookie names to validate
+    $cookie_test_value = array(
+        'cookies_names' => array(),
+        'check_value' => trim($mybb->settings['antispam_by_cleantalk_accesskey']),
+    );
+        
+    // Submit time
+    $apbct_timestamp = time();
+    setcookie('ct_timestamp', $apbct_timestamp, 0, '/');
+    $cookie_test_value['cookies_names'][] = 'ct_timestamp';
+    $cookie_test_value['check_value'] .= $apbct_timestamp;
+
+    // Pervious referer
+    if(!empty($_SERVER['HTTP_REFERER'])){
+        setcookie('ct_prev_referer', $_SERVER['HTTP_REFERER'], 0, '/');
+        $cookie_test_value['cookies_names'][] = 'ct_prev_referer';
+        $cookie_test_value['check_value'] .= $_SERVER['HTTP_REFERER'];
+    }
+    
+    // Cookies test
+    $cookie_test_value['check_value'] = md5($cookie_test_value['check_value']);
+    setcookie('ct_cookies_test', json_encode($cookie_test_value), 0, '/');    
+}
+function antispam_by_cleantalk_testcokkies(){
+    global $mybb;
+
+    if(isset($_COOKIE['ct_cookies_test'])){
+        
+        $cookie_test = json_decode(stripslashes($_COOKIE['ct_cookies_test']), true);
+        
+        $check_srting = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
+        foreach($cookie_test['cookies_names'] as $cookie_name){
+            $check_srting .= isset($_COOKIE[$cookie_name]) ? $_COOKIE[$cookie_name] : '';
+        } unset($cokie_name);
+        
+        if($cookie_test['check_value'] == md5($check_srting)){
+            return 1;
+        }else{
+            return 0;
+        }
+    }else{
+        return null;
+    }    
+}
 function antispam_by_cleantalk_trigger(){
 	global $mybb;
-    if (!session_id()) session_start();
+
 	if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
 		return false;
 	}
 	
-	if ($mybb->user['postnum'] <= '3'){
-		$ct = new Cleantalk();
-        $ct->work_url = 'http://moderate.cleantalk.ru';
-        $ct->server_url = 'http://moderate.cleantalk.ru';
-        $ct->server_ttl = 0;
-        $ct->server_changed = 0;
-        $ct_submit_time = null;
-		$message = $mybb->get_input('message');
-		$subject = $mybb->get_input('subject');
-		if(isset($_SERVER['HTTP_USER_AGENT']))
-            $user_agent = htmlspecialchars((string) $_SERVER['HTTP_USER_AGENT']);
-        else
-            $user_agent = NULL;
-
-        if(isset($_SERVER['HTTP_REFERER']))
-            $refferrer = htmlspecialchars((string) $_SERVER['HTTP_REFERER']);
-        else
-            $refferrer = NULL;
-        $sender_info = array(
-            'REFFERRER' => $refferrer,
-            'post_url' => $refferrer,
-            'USER_AGENT' => $user_agent
+	if ($mybb->user['postnum'] <= '3')
+    {
+        $ct_result = antispam_by_cleantalk_spam_check(
+            'check_message', array(
+                'message' => $mybb->get_input('message') . " \n\n" . $$mybb->get_input('subject'),
+                'sender_email' => isset($mybb->user['email']) ? $mybb->user['email'] : '',
+                'sender_nickname' => isset($mybb->user['username']) ? $mybb->user['username'] : '',
+            )
         );
-        $sender_info = json_encode($sender_info);
-		$ct_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
-		$ct_request = new CleantalkRequest();
-		$ct_request->auth_key = $ct_key;
-		$ct_request->sender_email = isset($mybb->user['email']) ? $mybb->user['email'] : '';
-		$ct_request->sender_nickname = isset($mybb->user['username']) ? $mybb->user['username'] : '';
-		$ct_request->sender_ip = $_SERVER['REMOTE_ADDR'];
-        $ct_request->agent = ENGINE;
-        $ct_request->js_on = 1;
-        $ct_request->sender_info = $sender_info;
-        $ct_request->message = $subject . " \n\n" . $message;
-        if(isset($_SESSION['ct_submit_com_time']))
-            $ct_submit_time = time() - $_SESSION['ct_submit_com_time'];      
-        $ct_request->submit_time = $ct_submit_time;
-        $ct_result = $ct->isAllowMessage($ct_request);
+
         if ($ct_result->allow == 0)
-        {
-        	ct_blocked($ct_result->comment);
-        }
+        	antispam_by_cleantalk_show_message($ct_result->comment);
 	}
 	
 }
 function antispam_by_cleantalk_regtrigger(){
 	global $mybb;
-    if (!session_id()) session_start();
 	if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_regcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
 		return false;
 	}
-		$ct = new Cleantalk();
-        $ct->work_url = 'http://moderate.cleantalk.ru';
-        $ct->server_url = 'http://moderate.cleantalk.ru';
-        $ct->server_ttl = 0;
-        $ct->server_changed = 0;
-        $ct_submit_time = null;
-		if(isset($_SERVER['HTTP_USER_AGENT']))
-            $user_agent = htmlspecialchars((string) $_SERVER['HTTP_USER_AGENT']);
-        else
-            $user_agent = NULL;
-
-        if(isset($_SERVER['HTTP_REFERER']))
-            $refferrer = htmlspecialchars((string) $_SERVER['HTTP_REFERER']);
-        else
-            $refferrer = NULL;
-        $sender_info = array(
-            'REFFERRER' => $refferrer,
-            'post_url' => $refferrer,
-            'USER_AGENT' => $user_agent
+        $ct_result = antispam_by_cleantalk_spam_check(
+            'check_newuser', array(
+                'sender_email' => isset($mybb->input['email']) ? $mybb->input['email'] : '',
+                'sender_nickname' => isset($mybb->input['username']) ? $mybb->input['username'] : '',                
+            )
         );
-        $sender_info = json_encode($sender_info);
-		$ct_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
-		$ct_request = new CleantalkRequest();
-		$ct_request->auth_key = $ct_key;
-		$ct_request->sender_email = isset($mybb->input['email']) ? $mybb->input['email'] : '';
-		$ct_request->sender_nickname = isset($mybb->input['username']) ? $mybb->input['username'] : '';
-		$ct_request->sender_ip = $_SERVER['REMOTE_ADDR'];
-        $ct_request->agent = ENGINE;
-        $ct_request->js_on = 1;
-        $ct_request->sender_info = $sender_info;
-        if(isset($_SESSION['ct_submit_reg_time']))
-            $ct_submit_time = time() - $_SESSION['ct_submit_reg_time'];      
-        $ct_request->submit_time = $ct_submit_time;
-        $ct_result = $ct->isAllowUser($ct_request);
+
         if ($ct_result->allow == 0)
-        {
-        	ct_blocked($ct_result->comment);
-        }
+        	antispam_by_cleantalk_show_message($ct_result->comment);
 	
 }
-function antispam_by_cleantalk_contacttrigger(){
+function antispam_by_cleantalk_contacttrigger()
+{
     global $mybb;
-    if (!session_id()) session_start();
+
     if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
         return false;
     }
-    
-        $ct = new Cleantalk();
-        $ct->work_url = 'http://moderate.cleantalk.ru';
-        $ct->server_url = 'http://moderate.cleantalk.ru';
-        $ct->server_ttl = 0;
-        $ct->server_changed = 0;
-        $ct_submit_time = null;
-        $message = $mybb->get_input('message');
-        $subject = $mybb->get_input('subject');
-        if(isset($_SERVER['HTTP_USER_AGENT']))
-            $user_agent = htmlspecialchars((string) $_SERVER['HTTP_USER_AGENT']);
-        else
-            $user_agent = NULL;
-
-        if(isset($_SERVER['HTTP_REFERER']))
-            $refferrer = htmlspecialchars((string) $_SERVER['HTTP_REFERER']);
-        else
-            $refferrer = NULL;
-        $sender_info = array(
-            'REFFERRER' => $refferrer,
-            'post_url' => $refferrer,
-            'USER_AGENT' => $user_agent
+        $ct_result = antispam_by_cleantalk_spam_check(
+            'check_message', array(
+                'message' => $mybb->get_input('message') . " \n\n" . $$mybb->get_input('subject'),
+                'sender_email' => $mybb->get_input('email'),
+                'sender_nickname' => isset($mybb->user['username']) ? $mybb->user['username'] : '',
+            )
         );
-        $sender_info = json_encode($sender_info);
-        $ct_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
-        $ct_request = new CleantalkRequest();
-        $ct_request->auth_key = $ct_key;
-        $ct_request->sender_email = $mybb->get_input('email');
-        $ct_request->sender_nickname = isset($mybb->user['username']) ? $mybb->user['username'] : '';
-        $ct_request->sender_ip = $_SERVER['REMOTE_ADDR'];
-        $ct_request->agent = ENGINE;
-        $ct_request->js_on = 1;
-        $ct_request->sender_info = $sender_info;
-        $ct_request->message = $subject . " \n\n" . $message;
-        if(isset($_SESSION['ct_submit_com_time']))
-            $ct_submit_time = time() - $_SESSION['ct_submit_com_time'];      
-        $ct_request->submit_time = $ct_submit_time;
-        $ct_result = $ct->isAllowMessage($ct_request);
         if ($ct_result->allow == 0)
-        {
-            ct_blocked($ct_result->comment);
-        }
+            antispam_by_cleantalk_show_message($ct_result->comment);
     
 }
-function ct_blocked($comment){
+function antispam_by_cleantalk_spam_check($method, $params)
+{
+    global $mybb;
+
+    $ct = new Cleantalk();
+    $ct->server_url = 'http://moderate.cleantalk.ru';
+
+    $ct_request = new CleantalkRequest();
+
+    foreach ($params as $k => $v) 
+        $ct_request->$k = $v;
+
+    $ct_request->auth_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
+    $ct_request->sender_ip = CleantalkHelper::ip_get(array('real'), false);
+    $ct_request->x_forwarded_for = CleantalkHelper::ip_get(array('x_forwarded_for'), false);
+    $ct_request->x_real_ip       = CleantalkHelper::ip_get(array('x_real_ip'), false);
+    $ct_request->agent = ENGINE;
+    $ct_request->js_on = 1;
+    $ct_request->submit_time = isset($_COOKIE['ct_timestamp']) ? time() - intval($_COOKIE['ct_timestamp']) : 0; 
+    $ct_request->sender_info = json_encode(array(
+        'page_url' => htmlspecialchars(@$_SERVER['SERVER_NAME'].@$_SERVER['REQUEST_URI']),
+        'REFFERRER' => $_SERVER['HTTP_REFERER'],
+        'USER_AGENT' => $_SERVER['HTTP_USER_AGENT'],
+        'REFFERRER_PREVIOUS' => isset($_COOKIE['ct_prev_referer'])?$_COOKIE['ct_prev_referer']:0,     
+        'cookies_enabled' => antispam_by_cleantalk_testcokkies(),   
+    ));    
+    switch ($method) 
+    {
+        case 'check_message':
+            $result = $ct->isAllowMessage($ct_request);
+            break;
+        case 'send_feedback':
+            $result = $ct->sendFeedback($ct_request);
+            break;
+        case 'check_newuser':
+            $result = $ct->isAllowUser($ct_request);
+            break;
+        default:
+            return NULL;
+    } 
+
+    return $result;                                
+
+}
+function antispam_by_cleantalk_show_message($comment){
 	
-	global $mybb, $theme, $templates, $db, $lang, $plugins, $session;
+	global $mybb, $templates, $lang;
+    
 	if ($mybb->get_input('ajax', MyBB::INPUT_INT)){
 		header("Content-type: application/json; charset={$lang->settings['charset']}");
 		echo json_encode(array("errors" => array($comment)));
@@ -427,40 +416,18 @@ function ct_blocked($comment){
  *
  */
  
- /**
-* Creating apache_request_headers() if not exists
-*/
-if( !function_exists('apache_request_headers') ) {
-	function apache_request_headers() {
-	  $arh = array();
-	  $rx_http = '/\AHTTP_/';
-	  foreach($_SERVER as $key => $val) {
-		if( preg_match($rx_http, $key) ) {
-		  $arh_key = preg_replace($rx_http, '', $key);
-		  $rx_matches = array();
-		  // do some nasty string manipulations to restore the original letter case
-		  // this should work in most cases
-		  $rx_matches = explode('_', $arh_key);
-		  if( count($rx_matches) > 0 and strlen($arh_key) > 2 ) {
-			foreach($rx_matches as $ak_key => $ak_val) $rx_matches[$ak_key] = ucfirst($ak_val);
-			$arh_key = implode('-', $rx_matches);
-		  }
-		  $arh[$arh_key] = $val;
-		}
-	  }
-	  return( $arh );
-	}
-}
 /**
  * Response class
  */
-class CleantalkResponse {
+class CleantalkResponse
+{
+
     /**
      * Received feedback nubmer
      * @var int
      */
     public $received = null;
-	
+    
     /**
      *  Is stop words
      * @var int
@@ -472,85 +439,103 @@ class CleantalkResponse {
      * @var string
      */
     public $comment = null;
+
     /**
      * Is blacklisted
      * @var int
      */
     public $blacklisted = null;
+
     /**
      * Is allow, 1|0
      * @var int
      */
     public $allow = null;
+
     /**
      * Request ID
      * @var int
      */
     public $id = null;
+
     /**
      * Request errno
      * @var int
      */
     public $errno = null;
+
     /**
      * Error string
      * @var string
      */
     public $errstr = null;
+
+    /**
+     * Error string
+     * @var string
+     */
+    public $curl_err = null;
+    
     /**
      * Is fast submit, 1|0
      * @var string
      */
     public $fast_submit = null;
+
     /**
      * Is spam comment
      * @var string
      */
     public $spam = null;
+
     /**
      * Is JS
      * @var type 
      */
     public $js_disabled = null;
+
     /**
      * Sms check
      * @var type 
      */
     public $sms_allow = null;
+
     /**
      * Sms code result
      * @var type 
      */
     public $sms = null;
-	
+    
     /**
      * Sms error code
      * @var type 
      */
     public $sms_error_code = null;
-	
+    
     /**
      * Sms error code
      * @var type 
      */
     public $sms_error_text = null;
     
-	/**
+    /**
      * Stop queue message, 1|0
      * @var int  
      */
     public $stop_queue = null;
-	
+    
     /**
      * Account shuld by deactivated after registration, 1|0
      * @var int  
      */
     public $inactive = null;
+
     /**
      * Account status 
      * @var int  
      */
     public $account_status = -1;
+
     /**
      * Create server response
      *
@@ -565,7 +550,10 @@ class CleantalkResponse {
         } else {
             $this->errno = $obj->errno;
             $this->errstr = $obj->errstr;
-			$this->errstr = preg_replace("/.+(\*\*\*.+\*\*\*).+/", "$1", $this->errstr);
+            $this->curl_err = !empty($obj->curl_err) ? $obj->curl_err : false;
+
+            $this->errstr = preg_replace("/.+(\*\*\*.+\*\*\*).+/", "$1", $this->errstr);
+
             $this->stop_words = isset($obj->stop_words) ? utf8_decode($obj->stop_words) : null;
             $this->comment = isset($obj->comment) ? utf8_decode($obj->comment) : null;
             $this->blacklisted = (isset($obj->blacklisted)) ? $obj->blacklisted : null;
@@ -581,7 +569,8 @@ class CleantalkResponse {
             $this->stop_queue = (isset($obj->stop_queue)) ? $obj->stop_queue : 0;
             $this->inactive = (isset($obj->inactive)) ? $obj->inactive : 0;
             $this->account_status = (isset($obj->account_status)) ? $obj->account_status : -1;
-	    	$this->received = (isset($obj->received)) ? $obj->received : -1;
+            $this->received = (isset($obj->received)) ? $obj->received : -1;
+
             if ($this->errno !== 0 && $this->errstr !== null && $this->comment === null)
                 $this->comment = '*** ' . $this->errstr . ' Antispam service cleantalk.org ***'; 
         }
@@ -591,6 +580,7 @@ class CleantalkResponse {
  * Request class
  */
 class CleantalkRequest {
+
      /**
      *  All http request headers
      * @var string
@@ -620,69 +610,82 @@ class CleantalkRequest {
      * @var string
      */
      public $last_error_text = null;
+
     /**
      * User message
      * @var string
      */
     public $message = null;
+
     /**
      * Post example with last comments
      * @var string
      */
     public $example = null;
+
     /**
      * Auth key
      * @var string
      */
     public $auth_key = null;
+
     /**
      * Engine
      * @var string
      */
     public $agent = null;
+
     /**
      * Is check for stoplist,
      * valid are 0|1
      * @var int
      */
     public $stoplist_check = null;
+
     /**
      * Language server response,
      * valid are 'en' or 'ru'
      * @var string
      */
     public $response_lang = null;
+
     /**
      * User IP
      * @var strings
      */
     public $sender_ip = null;
+
     /**
      * User email
      * @var strings
      */
     public $sender_email = null;
+
     /**
      * User nickname
      * @var string
      */
     public $sender_nickname = null;
+
     /**
      * Sender info JSON string
      * @var string
      */
     public $sender_info = null;
+
     /**
      * Post info JSON string
      * @var string
      */
     public $post_info = null;
+
     /**
      * Is allow links, email and icq,
      * valid are 1|0
      * @var int
      */
     public $allow_links = null;
+
     /**
      * Time form filling
      * @var int
@@ -691,27 +694,31 @@ class CleantalkRequest {
     
     public $x_forwarded_for = '';
     public $x_real_ip = '';
+
     /**
      * Is enable Java Script,
      * valid are 0|1|2
-	 * Status:
-	 *  null - JS html code not inserted into phpBB templates
-	 *  0 - JS disabled at the client browser
-	 *  1 - JS enabled at the client broswer
+     * Status:
+     *  null - JS html code not inserted into phpBB templates
+     *  0 - JS disabled at the client browser
+     *  1 - JS enabled at the client broswer
      * @var int
      */
     public $js_on = null;
+
     /**
      * user time zone
      * @var string
      */
     public $tz = null;
+
     /**
      * Feedback string,
      * valid are 'requset_id:(1|0)'
      * @var string
      */
     public $feedback = null;
+
     /**
      * Phone number
      * @var type 
@@ -723,6 +730,7 @@ class CleantalkRequest {
     * @var string
     */
     public $method_name = 'check_message'; 
+
     /**
      * Fill params with constructor
      * @param type $params
@@ -734,59 +742,68 @@ class CleantalkRequest {
             }
         }
     }
+
 }
 /**
  * Cleantalk class create request
  */
-class Cleantalk {
+class Cleantalk
+{
+
     /**
      * Debug level
      * @var int
      */
     public $debug = 0;
-	
+    
     /**
-	* Maximum data size in bytes
-	* @var int
-	*/
-	private $dataMaxSise = 32768;
-	
-	/**
-	* Data compression rate 
-	* @var int
-	*/
-	private $compressRate = 6;
-	
+    * Maximum data size in bytes
+    * @var int
+    */
+    private $dataMaxSise = 32768;
+    
     /**
-	* Server connection timeout in seconds 
-	* @var int
-	*/
-	private $server_timeout = 15;
+    * Data compression rate 
+    * @var int
+    */
+    private $compressRate = 6;
+    
+    /**
+    * Server connection timeout in seconds 
+    * @var int
+    */
+    private $server_timeout = 15;
+
     /**
      * Cleantalk server url
      * @var string
      */
     public $server_url = null;
+
     /**
      * Last work url
      * @var string
      */
     public $work_url = null;
+
     /**
      * WOrk url ttl
      * @var int
      */
     public $server_ttl = null;
+
     /**
      * Time wotk_url changer
      * @var int
      */
     public $server_changed = null;
+
     /**
      * Flag is change server url
      * @var bool
      */
     public $server_change = false;
+
     /**
      * Use TRUE when need stay on server. Example: send feedback
      * @var bool
@@ -816,11 +833,13 @@ class Cleantalk {
      * @var string
      */
     public $ssl_path = '';
+
     /**
      * Minimal server response in miliseconds to catch the server
      *
      */
     public $min_server_timeout = 50;
+
     /**
      * Function checks whether it is possible to publish the message
      * @param CleantalkRequest $request
@@ -831,6 +850,7 @@ class Cleantalk {
         $msg = $this->createMsg('check_message', $request);
         return $this->httpRequest($msg);
     }
+
     /**
      * Function checks whether it is possible to publish the message
      * @param CleantalkRequest $request
@@ -841,6 +861,7 @@ class Cleantalk {
         $msg = $this->createMsg('check_newuser', $request);
         return $this->httpRequest($msg);
     }
+
     /**
      * Function sends the results of manual moderation
      *
@@ -852,6 +873,7 @@ class Cleantalk {
         $msg = $this->createMsg('send_feedback', $request);
         return $this->httpRequest($msg);
     }
+
     /**
      *  Filter request params
      * @param CleantalkRequest $request
@@ -866,6 +888,7 @@ class Cleantalk {
                     $request->$param = NULL;
                 }
             }
+
             if (in_array($param, array('stoplist_check', 'allow_links')) && !empty($value)) {
                 if (!in_array($value, array(1, 2))) {
                     $request->$param = NULL;
@@ -877,46 +900,53 @@ class Cleantalk {
                     $request->$param = NULL;
                 }
             }
+
             if ($param == 'sender_ip' && !empty($value)) {
                 if (!is_string($value)) {
                     $request->$param = NULL;
                 }
             }
+
             if ($param == 'sender_email' && !empty($value)) {
                 if (!is_string($value)) {
                     $request->$param = NULL;
                 }
             }
+
             if ($param == 'submit_time' && !empty($value)) {
                 if (!is_int($value)) {
                     $request->$param = NULL;
                 }
             }
         }
-		return $request;
+        return $request;
     }
     
-	/**
+    /**
      * Compress data and encode to base64 
      * @param type string
      * @return string 
      */
-	private function compressData($data = null){
-		
-		if (strlen($data) > $this->dataMaxSise && function_exists('gzencode') && function_exists('base64_encode')){
-			$localData = gzencode($data, $this->compressRate, FORCE_GZIP);
-			if ($localData === false)
-				return $data;
-			
-			$localData = base64_encode($localData);
-			
-			if ($localData === false)
-				return $data;
-			
-			return $localData;
-		}
-		return $data;
-	} 
+    private function compressData($data = null){
+        
+        if (strlen($data) > $this->dataMaxSise && function_exists('gzencode') && function_exists('base64_encode')){
+
+            $localData = gzencode($data, $this->compressRate, FORCE_GZIP);
+
+            if ($localData === false)
+                return $data;
+            
+            $localData = base64_encode($localData);
+            
+            if ($localData === false)
+                return $data;
+            
+            return $localData;
+        }
+
+        return $data;
+    } 
+
     /**
      * Create msg for cleantalk server
      * @param type $method
@@ -931,14 +961,17 @@ class Cleantalk {
                 $request->example = $this->stringToUTF8($request->example, $this->data_codepage);
                 $request->sender_email = $this->stringToUTF8($request->sender_email, $this->data_codepage);
                 $request->sender_nickname = $this->stringToUTF8($request->sender_nickname, $this->data_codepage);
+
                 $request->message = $this->compressData($request->message);
-				$request->example = $this->compressData($request->example);
+                $request->example = $this->compressData($request->example);
                 break;
+
             case 'check_newuser':
                 // Convert strings to UTF8
                 $request->sender_email = $this->stringToUTF8($request->sender_email, $this->data_codepage);
                 $request->sender_nickname = $this->stringToUTF8($request->sender_nickname, $this->data_codepage);
                 break;
+
             case 'send_feedback':
                 if (is_array($request->feedback)) {
                     $request->feedback = implode(';', $request->feedback);
@@ -952,9 +985,8 @@ class Cleantalk {
         // Removing non UTF8 characters from request, because non UTF8 or malformed characters break json_encode().
         //
         foreach ($request as $param => $value) {
-            if (!preg_match('//u', $value)) {
+            if (!preg_match('//u', $value))
                 $request->{$param} = 'Nulled. Not UTF8 encoded or malformed.'; 
-            }
         }
         
         return $request;
@@ -968,16 +1000,20 @@ class Cleantalk {
     private function sendRequest($data = null, $url, $server_timeout = 3) {
         // Convert to array
         $data = (array)json_decode(json_encode($data), true);
-		
-		//Cleaning from 'null' values
-		$tmp_data = array();
-		foreach($data as $key => $value){
-			if($value !== null)
-				$tmp_data[$key] = $value;
-		}
-		$data = $tmp_data;
-		unset($key, $value, $tmp_data);
-	
+        
+        $original_url = $url;
+        $original_data = $data;
+        
+        //Cleaning from 'null' values
+        $tmp_data = array();
+        foreach($data as $key => $value){
+            if($value !== null){
+                $tmp_data[$key] = $value;
+            }
+        }
+        $data = $tmp_data;
+        unset($key, $value, $tmp_data);
+        
         // Convert to JSON
         $data = json_encode($data);
         
@@ -989,10 +1025,10 @@ class Cleantalk {
         if ($this->ssl_on && !preg_match("/^https:/", $url)) {
             $url = preg_replace("/^(http)/i", "$1s", $url);
         }
-				
+        
         $result = false;
         $curl_error = null;
-		if(function_exists('curl_init')) {
+        if(function_exists('curl_init')){
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_TIMEOUT, $server_timeout);
@@ -1008,21 +1044,28 @@ class Cleantalk {
             // Disabling CA cert verivication
             // Disabling common name verification
             if ($this->ssl_on && $this->ssl_path=='') {
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             }
             else if ($this->ssl_on && $this->ssl_path!='') {
-            	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
                 curl_setopt($ch, CURLOPT_CAINFO, $this->ssl_path);
             }
+
             $result = curl_exec($ch);
             if (!$result) {
                 $curl_error = curl_error($ch);
+                // Use SSL next time, if error occurs.
+                if(!$this->ssl_on){
+                    $this->ssl_on = true;
+                    return $this->sendRequest($original_data, $original_url, $server_timeout);
+                }
             }
             
             curl_close($ch); 
         }
+
         if (!$result) {
             $allow_url_fopen = ini_get('allow_url_fopen');
             if (function_exists('file_get_contents') && isset($allow_url_fopen) && $allow_url_fopen == '1') {
@@ -1034,20 +1077,17 @@ class Cleantalk {
                     'timeout' => $server_timeout
                   )
                 );
+
                 $context  = stream_context_create($opts);
                 $result = @file_get_contents($url, false, $context);
             }
         }
-		
-        if (!$result || !cleantalk_is_JSON($result)) {
+        
+        if (!$result || !self::cleantalk_is_JSON($result)) {
             $response = null;
             $response['errno'] = 1;
-            if ($curl_error) {
-                $response['errstr'] = sprintf("CURL error: '%s'", $curl_error); 
-            } else {
-                $response['errstr'] = 'No CURL support compiled in'; 
-            }
-            $response['errstr'] .= ' or disabled allow_url_fopen in php.ini.'; 
+            $response['errstr'] = true;
+            $response['curl_err'] = isset($curl_error) ? $curl_error : false;
             $response = json_decode(json_encode($response));
             
             return $response;
@@ -1070,66 +1110,63 @@ class Cleantalk {
         
         return $response;
     }
+
     /**
      * httpRequest 
      * @param $msg
      * @return boolean|\CleantalkResponse
      */
     private function httpRequest($msg) {
+        
         $result = false;
-	    
-		if($msg->method_name != 'send_feedback'){
-			$ct_tmp = apache_request_headers();
-			
-			if(isset($ct_tmp['Cookie']))
-				$cookie_name = 'Cookie';
-			elseif(isset($ct_tmp['cookie']))
-				$cookie_name = 'cookie';
-			else
-				$cookie_name = 'COOKIE';
-				
-			$ct_tmp[$cookie_name] = preg_replace(array(
-				'/\s{0,1}ct_checkjs=[a-z0-9]*[;|$]{0,1}/',
-				'/\s{0,1}ct_timezone=.{0,1}\d{1,2}[;|$]/', 
-				'/\s{0,1}ct_pointer_data=.*5D[;|$]{0,1}/', 
-				'/;{0,1}\s{0,3}$/'
-			), '', $ct_tmp[$cookie_name]);
-			$msg->all_headers=json_encode($ct_tmp);
-		}
-	    
-        //$msg->remote_addr=$_SERVER['REMOTE_ADDR'];
-        //$msg->sender_info['remote_addr']=$_SERVER['REMOTE_ADDR'];
+        
+        if($msg->method_name != 'send_feedback'){
+            $tmp = function_exists('apache_request_headers')
+                ? apache_request_headers()
+                : self::apache_request_headers();
+            
+            if(isset($tmp['Cookie'])){
+                $cookie_name = 'Cookie';
+            }elseif(isset($tmp['cookie'])){
+                $cookie_name = 'cookie';
+            }else{
+                $cookie_name = 'COOKIE';
+            }
+            
+            if(isset($tmp[$cookie_name])){
+                $tmp[$cookie_name] = preg_replace(array(
+                    '/\s{0,1}ct_checkjs=[a-z0-9]*[;|$]{0,1}/',
+                    '/\s{0,1}ct_timezone=.{0,1}\d{1,2}[;|$]/', 
+                    '/\s{0,1}ct_pointer_data=.*5D[;|$]{0,1}/', 
+                    '/;{0,1}\s{0,3}$/'
+                ), '', $tmp[$cookie_name]);
+            }
+            
+            $msg->all_headers=json_encode($tmp);
+        }
+        
         $si=(array)json_decode($msg->sender_info,true);
-        if(defined('IN_PHPBB'))
-        {
-        	global $request;
-        	if(method_exists($request,'server'))
-        	{
-        		$si['remote_addr']=$request->server('REMOTE_ADDR');
-        		$msg->x_forwarded_for=$request->server('X_FORWARDED_FOR');
-        		$msg->x_real_ip=$request->server('X_REAL_IP');
-        	}
-        }
-        else
-        {
-        	$si['remote_addr']=$_SERVER['REMOTE_ADDR'];
-        	$msg->x_forwarded_for=@$_SERVER['X_FORWARDED_FOR'];
-        	$msg->x_real_ip=@$_SERVER['X_REAL_IP'];
-        }
+
+        $si['remote_addr'] = $_SERVER['REMOTE_ADDR'];
+        if(isset($_SERVER['X_FORWARDED_FOR'])) $msg->x_forwarded_for = $_SERVER['X_FORWARDED_FOR'];
+        if(isset($_SERVER['X_REAL_IP']))       $msg->x_real_ip       = $_SERVER['X_REAL_IP'];
+        
         $msg->sender_info=json_encode($si);
         if (((isset($this->work_url) && $this->work_url !== '') && ($this->server_changed + $this->server_ttl > time()))
-				|| $this->stay_on_server == true) {
-	        
+                || $this->stay_on_server == true) {
+            
             $url = (!empty($this->work_url)) ? $this->work_url : $this->server_url;
-					
+                    
             $result = $this->sendRequest($msg, $url, $this->server_timeout);
         }
+
         if (($result === false || $result->errno != 0) && $this->stay_on_server == false) {
             // Split server url to parts
             preg_match("@^(https?://)([^/:]+)(.*)@i", $this->server_url, $matches);
             $url_prefix = '';
             if (isset($matches[1]))
                 $url_prefix = $matches[1];
+
             $pool = null;
             if (isset($matches[2]))
                 $pool = $matches[2];
@@ -1140,6 +1177,7 @@ class Cleantalk {
             
             if ($url_prefix === '')
                 $url_prefix = 'http://';
+
             if (empty($pool)) {
                 return false;
             } else {
@@ -1159,6 +1197,7 @@ class Cleantalk {
                     $this->server_ttl = $server['ttl'];
                     
                     $result = $this->sendRequest($msg, $this->work_url, $this->server_timeout);
+
                     if ($result !== false && $result->errno === 0) {
                         $this->server_change = true;
                         break;
@@ -1166,10 +1205,11 @@ class Cleantalk {
                 }
             }
         }
-				
+        
         $response = new CleantalkResponse(null, $result);
-		
-        if (!empty($this->data_codepage) && $this->data_codepage !== 'UTF-8') {
+        
+        if (!empty($this->data_codepage) && $this->data_codepage !== 'UTF-8') 
+        {
             if (!empty($response->comment))
             $response->comment = $this->stringFromUTF8($response->comment, $this->data_codepage);
             if (!empty($response->errstr))
@@ -1177,7 +1217,7 @@ class Cleantalk {
             if (!empty($response->sms_error_text))
             $response->sms_error_text = $this->stringFromUTF8($response->sms_error_text, $this->data_codepage);
         }
-		
+        
         return $response;
     }
     
@@ -1186,29 +1226,36 @@ class Cleantalk {
      * @param $host
      * @return array
      */
-    public function get_servers_ip($host) {
+    public function get_servers_ip($host)
+    {
         $response = null;
         if (!isset($host))
             return $response;
+
         if (function_exists('dns_get_record')) {
-            $records = dns_get_record($host, DNS_A);
+            $records = @dns_get_record($host, DNS_A);
+
             if ($records !== FALSE) {
                 foreach ($records as $server) {
                     $response[] = $server;
                 }
             }
         }
+
         if (count($response) == 0 && function_exists('gethostbynamel')) {
             $records = gethostbynamel($host);
+
             if ($records !== FALSE) {
                 foreach ($records as $server) {
-                    $response[] = array("ip" => $server,
+                    $response[] = array(
+                        "ip" => $server,
                         "host" => $host,
                         "ttl" => $this->server_ttl
                     );
                 }
             }
         }
+
         if (count($response) == 0) {
             $response[] = array("ip" => null,
                 "host" => $host,
@@ -1244,8 +1291,10 @@ class Cleantalk {
                 $response = $r_temp;
             }
         }
+
         return $response;
     }
+
     /**
      * Function to get the message hash from Cleantalk.ru comment
      * @param $message
@@ -1257,8 +1306,10 @@ class Cleantalk {
             return $matches[1];
         else if (preg_match('/\<br.*\>[\n]{0,1}\<br.*\>[\n]{0,1}\*\*\*.+([a-z0-9]{32}).+\*\*\*$/', $message, $matches))
             return $matches[1];
+
         return NULL;
     }
+
     /**
      * Function adds to the post comment Cleantalk.ru
      * @param $message
@@ -1269,6 +1320,7 @@ class Cleantalk {
         $comment = preg_match('/\*\*\*(.+)\*\*\*/', $comment, $matches) ? $comment : '*** ' . $comment . ' ***';
         return $message . "\n\n" . $comment;
     }
+
     /**
      * Function deletes the comment Cleantalk.ru
      * @param $message
@@ -1276,51 +1328,25 @@ class Cleantalk {
      */
     public function delCleantalkComment($message) {
         $message = preg_replace('/\n\n\*\*\*.+\*\*\*$/', '', $message);
+
         // DLE sign cut
         $message = preg_replace('/<br\s?\/><br\s?\/>\*\*\*.+\*\*\*$/', '', $message);
+
         $message = preg_replace('/\<br.*\>[\n]{0,1}\<br.*\>[\n]{0,1}\*\*\*.+\*\*\*$/', '', $message);
         
         return $message;
     }
+
     /**
     *   Get user IP behind proxy server
     */
     public function ct_session_ip( $data_ip ) {
-        if (!$data_ip || !preg_match("/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/", $data_ip)) {
+        if (!$data_ip || !preg_match("/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/", $data_ip))
             return $data_ip;
-        }
-        /*if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            
-            $forwarded_ip = explode(",", $_SERVER['HTTP_X_FORWARDED_FOR']);
-            // Looking for first value in the list, it should be sender real IP address
-            if (!preg_match("/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/", $forwarded_ip[0])) {
-                return $data_ip;
-            }
-            $private_src_ip = false;
-            $private_nets = array(
-                '10.0.0.0/8',
-                '127.0.0.0/8',
-                '176.16.0.0/12',
-                '192.168.0.0/16',
-            );
-            foreach ($private_nets as $v) {
-                // Private IP found
-                if ($private_src_ip) {
-                    continue;
-                }
-                
-                if ($this->net_match($v, $data_ip)) {
-                    $private_src_ip = true;
-                }
-            }
-            if ($private_src_ip) {
-                // Taking first IP from the list HTTP_X_FORWARDED_FOR 
-                $data_ip = $forwarded_ip[0]; 
-            }
-        }
-        return $data_ip;*/
-        return cleantalk_get_real_ip();
+        
+        return self::cleantalk_get_real_ip();
     }
+
     /**
     * From http://php.net/manual/en/function.ip2long.php#82397
     */
@@ -1334,11 +1360,13 @@ class Cleantalk {
     * param string
     * @return int
     */
-    function httpPing($host){
+    public function httpPing($host){
+
         // Skip localhost ping cause it raise error at fsockopen.
         // And return minimun value 
         if ($host == 'localhost')
             return 0.001;
+
         $starttime = microtime(true);
         $file      = @fsockopen ($host, 80, $errno, $errstr, $this->server_timeout);
         $stoptime  = microtime(true);
@@ -1360,11 +1388,13 @@ class Cleantalk {
     * param string
     * @return string
     */
-    function stringToUTF8($str, $data_codepage = null){
-        if (!preg_match('//u', $str) && function_exists('mb_detect_encoding') && function_exists('mb_convert_encoding')) {
+    public function stringToUTF8($str, $data_codepage = null){
+        if (!preg_match('//u', $str) && function_exists('mb_detect_encoding') && function_exists('mb_convert_encoding'))
+        {
             
             if ($data_codepage !== null)
                 return mb_convert_encoding($str, 'UTF-8', $data_codepage);
+
             $encoding = mb_detect_encoding($str);
             if ($encoding)
                 return mb_convert_encoding($str, 'UTF-8', $encoding);
@@ -1379,198 +1409,621 @@ class Cleantalk {
     * param string
     * @return string
     */
-    function stringFromUTF8($str, $data_codepage = null){
-        if (preg_match('//u', $str) && function_exists('mb_convert_encoding') && $data_codepage !== null) {
+    public function stringFromUTF8($str, $data_codepage = null){
+        if (preg_match('//u', $str) && function_exists('mb_convert_encoding') && $data_codepage !== null)
+        {
             return mb_convert_encoding($str, $data_codepage, 'UTF-8');
         }
         
         return $str;
     }
     
-    /**
-     * Function gets information about spam active networks 
-     *
-     * @param string api_key
-     * @return JSON/array 
+    static public function cleantalk_get_real_ip(){
+        
+        $headers = function_exists('apache_request_headers')
+            ? apache_request_headers()
+            : self::apache_request_headers();
+        
+        // Getting IP for validating
+        if (array_key_exists( 'X-Forwarded-For', $headers )){
+            $ip = explode(",", trim($headers['X-Forwarded-For']));
+            $ip = trim($ip[0]);
+        }elseif(array_key_exists( 'HTTP_X_FORWARDED_FOR', $headers)){
+            $ip = explode(",", trim($headers['HTTP_X_FORWARDED_FOR']));
+            $ip = trim($ip[0]);
+        }else{
+            $ip = $_SERVER['REMOTE_ADDR'];
+        }
+
+        // Validating IP
+        // IPv4
+        if(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)){
+            $the_ip = $ip;
+            // IPv6
+        }elseif(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)){
+            $the_ip = $ip;
+            // Unknown
+        }else{
+            $the_ip = null;
+        }
+
+        return $the_ip;
+    }
+    
+    static public function cleantalk_is_JSON($string){
+        return ((is_string($string) && (is_object(json_decode($string)) || is_array(json_decode($string))))) ? true : false;
+    }
+    
+    /* 
+     * If Apache web server is missing then making
+     * Patch for apache_request_headers() 
      */
-    public function get_2s_blacklists_db ($api_key) {
-        $request=Array();
-        $request['method_name'] = '2s_blacklists_db'; 
-        $request['auth_key'] = $api_key;
-        $url='https://api.cleantalk.org';
-        $result=sendRawRequest($url,$request);
-        return $result;
+    static function apache_request_headers(){
+        
+        $headers = array(); 
+        foreach($_SERVER as $key => $val){
+            if(preg_match('/\AHTTP_/', $key)){
+                $server_key = preg_replace('/\AHTTP_/', '', $key);
+                $key_parts = explode('_', $server_key);
+                if(count($key_parts) > 0 and strlen($server_key) > 2){
+                    foreach($key_parts as $part_index => $part){
+                        $key_parts[$part_index] = mb_strtolower($part);
+                        $key_parts[$part_index][0] = strtoupper($key_parts[$part_index][0]);                    
+                    }
+                    $server_key = implode('-', $key_parts);
+                }
+                $headers[$server_key] = $val;
+            }
+        }
+        return $headers;
     }
 }
-/**
- * Function gets access key automatically
- *
- * @param string website admin email
- * @param string website host
- * @param string website platform
- * @return type
- */
-if(!function_exists('getAutoKey'))
+class CleantalkHelper
 {
-	function getAutoKey($email, $host, $platform)
-	{
-		$request=Array();
-		$request['method_name'] = 'get_api_key'; 
-		$request['email'] = $email;
-		$request['website'] = $host;
-		$request['platform'] = $platform;
-		$url='https://api.cleantalk.org';
-		$result=sendRawRequest($url,$request);
-		return $result;
-	}
-}
-/**
- * Function gets information about renew notice
- *
- * @param string api_key
- * @return type
- */
-function noticePaidTill($api_key)
-{
-	$request=Array();
-	$request['method_name'] = 'notice_paid_till'; 
-	$request['auth_key'] = $api_key;
-	$url='https://api.cleantalk.org';
-	$result=sendRawRequest($url,$request);
-	return $result;
-}
-/**
- * Function sends raw request to API server
- *
- * @param string url of API server
- * @param array data to send
- * @param boolean is data have to be JSON encoded or not
- * @param integer connect timeout
- * @return type
- */
-function sendRawRequest($url,$data,$isJSON=false,$timeout=3)
-{
-	$result=null;
-	if(!$isJSON)
-	{
-		$data=http_build_query($data);
-		$data=str_replace("&amp;", "&", $data);
-	}
-	else
-	{
-		$data= json_encode($data);
-	}
-	$curl_exec=false;
-	if (function_exists('curl_init') && function_exists('json_decode'))
-	{
-	
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-		
-		// receive server response ...
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		// resolve 'Expect: 100-continue' issue
-		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Expect:'));
-		
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-		
-		$result = @curl_exec($ch);
-		if($result!==false)
-		{
-			$curl_exec=true;
-		}
-		@curl_close($ch);
-	}
-	if(!$curl_exec)
-	{
-		$opts = array(
-		    'http'=>array(
-		        'method' => "POST",
-		        'timeout'=> $timeout,
-		        'content' => $data
-            )
-		);
-		$context = stream_context_create($opts);
-		$result = @file_get_contents($url, 0, $context);
-	}
-	return $result;
-}
-if( !function_exists('apache_request_headers') )
-{
-	function apache_request_headers()
-	{
-		$arh = array();
-		$rx_http = '/\AHTTP_/';
-		if(defined('IN_PHPBB'))
-		{
-			global $request;
-			$request->enable_super_globals();
-		}
-		foreach($_SERVER as $key => $val)
-		{
-			if( preg_match($rx_http, $key) )
-			{
-				$arh_key = preg_replace($rx_http, '', $key);
-				$rx_matches = array();
-				$rx_matches = explode('_', $arh_key);
-				if( count($rx_matches) > 0 and strlen($arh_key) > 2 )
-				{
-					foreach($rx_matches as $ak_key => $ak_val) $rx_matches[$ak_key] = ucfirst($ak_val);
-					$arh_key = implode('-', $rx_matches);
-				}
-				$arh[$arh_key] = $val;
-			}
-		}
-		if(defined('IN_PHPBB'))
-		{
-			global $request;
-			$request->disable_super_globals();
-		}
-		return( $arh );
-	}
-}
-function cleantalk_get_real_ip()
-{
-	if(defined('IN_PHPBB'))
-	{
-		global $request;
-		$request->enable_super_globals();
-	}
-	if ( function_exists( 'apache_request_headers' ) )
-	{
-		$headers = apache_request_headers();
-	}
-	else
-	{
-		
-		$headers = $_SERVER;
-	}
-	if ( array_key_exists( 'X-Forwarded-For', $headers ) )
-	{
-		$the_ip=explode(",", trim($headers['X-Forwarded-For']));
-		$the_ip = trim($the_ip[0]);
-	}
-	elseif ( array_key_exists( 'HTTP_X_FORWARDED_FOR', $headers ))
-	{
-		$the_ip=explode(",", trim($headers['HTTP_X_FORWARDED_FOR']));
-		$the_ip = trim($the_ip[0]);
-	}
-	else
-	{
-		$the_ip = filter_var( $_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 );
-	}
-	if(defined('IN_PHPBB'))
-	{
-		global $request;
-		$request->disable_super_globals();
-	}
-	return $the_ip;
-}
-function cleantalk_is_JSON($string)
-{
-    return ((is_string($string) && (is_object(json_decode($string)) || is_array(json_decode($string))))) ? true : false;
+    const URL = 'https://api.cleantalk.org';
+
+    public static $cdn_pool = array(
+        'cloud_flare' => array(
+            'ipv4' => array(
+                '103.21.244.0/22',
+                '103.22.200.0/22',
+                '103.31.4.0/22',
+                '104.16.0.0/12',
+                '108.162.192.0/18',
+                '131.0.72.0/22',
+                '141.101.64.0/18',
+                '162.158.0.0/15',
+                '172.64.0.0/13',
+                '173.245.48.0/20',
+                '185.93.231.18/20', // User fix
+                '185.220.101.46/20', // User fix
+                '188.114.96.0/20',
+                '190.93.240.0/20',
+                '197.234.240.0/22',
+                '198.41.128.0/17',
+            ),
+            'ipv6' => array(
+                '2400:cb00::/32',
+                '2405:8100::/32',
+                '2405:b500::/32',
+                '2606:4700::/32',
+                '2803:f800::/32',
+                '2c0f:f248::/32',
+                '2a06:98c0::/29',
+            ),
+        ),
+    );
+    
+    public static $private_networks = array(
+        '10.0.0.0/8',
+        '100.64.0.0/10',
+        '172.16.0.0/12',
+        '192.168.0.0/16',
+        '127.0.0.1/32',
+    );
+    
+    /*
+    *   Getting arrays of IP (REMOTE_ADDR, X-Forwarded-For, X-Real-Ip, Cf_Connecting_Ip)
+    *   reutrns array('remote_addr' => 'val', ['x_forwarded_for' => 'val', ['x_real_ip' => 'val', ['cloud_flare' => 'val']]])
+    */
+    static public function ip_get($ips_input = array('real', 'remote_addr', 'x_forwarded_for', 'x_real_ip', 'cloud_flare'), $v4_only = true)
+    {
+        $ips = array();
+        foreach($ips_input as $ip_type){
+            $ips[$ip_type] = '';
+        } unset($ip_type);
+                
+        $headers = function_exists('apache_request_headers') ? apache_request_headers() : self::apache_request_headers();
+        
+        // REMOTE_ADDR
+        if(isset($ips['remote_addr'])){
+            $ips['remote_addr'] = $_SERVER['REMOTE_ADDR'];
+        }
+        
+        // X-Forwarded-For
+        if(isset($ips['x_forwarded_for'])){
+            if(isset($headers['X-Forwarded-For'])){
+                $tmp = explode(",", trim($headers['X-Forwarded-For']));
+                $ips['x_forwarded_for']= trim($tmp[0]);
+            }
+        }
+        
+        // X-Real-Ip
+        if(isset($ips['x_real_ip'])){
+            if(isset($headers['X-Real-Ip'])){
+                $tmp = explode(",", trim($headers['X-Real-Ip']));
+                $ips['x_real_ip']= trim($tmp[0]);
+            }
+        }
+        
+        // Cloud Flare
+        if(isset($ips['cloud_flare'])){
+            if(isset($headers['Cf-Connecting-Ip'])){
+                if(self::ip_mask_match($ips['remote_addr'], self::$cdn_pool['cloud_flare']['ipv4'])){
+                    $ips['cloud_flare'] = $headers['Cf-Connecting-Ip'];
+                }
+            }
+        }
+        
+        // Getting real IP from REMOTE_ADDR or Cf_Connecting_Ip if set or from (X-Forwarded-For, X-Real-Ip) if REMOTE_ADDR is local.
+        if(isset($ips['real'])){
+            
+            $ips['real'] = $_SERVER['REMOTE_ADDR'];
+            
+            // Cloud Flare
+            if(isset($headers['Cf-Connecting-Ip'])){
+                if(self::ip_mask_match($ips['real'], self::$cdn_pool['cloud_flare']['ipv4'])){
+                    $ips['real'] = $headers['Cf-Connecting-Ip'];
+                }
+            // Incapsula proxy
+            }elseif(isset($headers['Incap-Client-Ip'])){
+                $ips['real'] = $headers['Incap-Client-Ip'];
+            // Private networks. Looking for X-Forwarded-For and X-Real-Ip
+            }elseif(self::ip_mask_match($ips['real'], self::$private_networks)){
+                if(isset($headers['X-Forwarded-For'])){
+                    $tmp = explode(",", trim($headers['X-Forwarded-For']));
+                    $ips['real']= trim($tmp[0]);
+                }elseif(isset($headers['X-Real-Ip'])){
+                    $tmp = explode(",", trim($headers['X-Real-Ip']));
+                    $ips['real']= trim($tmp[0]);
+                }
+            }
+        }
+        
+        // Validating IPs
+        $result = array();
+        foreach($ips as $key => $ip){
+            if($v4_only){
+                if(self::ip_validate($ip) == 'v4')
+                    $result[$key] = $ip;
+            }else{
+                if(self::ip_validate($ip))
+                    $result[$key] = $ip;
+            }
+        }
+        
+        $result = array_unique($result);
+        
+        return count($ips_input) > 1 
+            ? $result 
+            : (reset($result) !== false
+                ? reset($result)
+                : null);
+    }
+        
+    /*
+     * Check if the IP belong to mask. Recursivly if array given
+     * @param ip string  
+     * @param cird mixed (string|array of strings)
+    */
+    static public function ip_mask_match($ip, $cidr){
+        if(is_array($cidr)){
+            foreach($cidr as $curr_mask){
+                if(self::ip_mask_match($ip, $curr_mask)){
+                    return true;
+                }
+            } unset($curr_mask);
+            return false;
+        }
+        $exploded = explode ('/', $cidr);
+        $net = $exploded[0];
+        $mask = 4294967295 << (32 - $exploded[1]);
+        return (ip2long($ip) & $mask) == (ip2long($net) & $mask);
+    }
+    
+    /*
+    *   Validating IPv4, IPv6
+    *   param (string) $ip
+    *   returns (string) 'v4' || (string) 'v6' || (bool) false
+    */
+    static public function ip_validate($ip)
+    {
+        if(!$ip)                                                  return false; // NULL || FALSE || '' || so on...
+        if(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return 'v4';  // IPv4
+        if(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) return 'v6';  // IPv6
+                                                                  return false; // Unknown
+    }
+    
+    /*
+    * Wrapper for sfw_logs API method
+    * 
+    * returns mixed STRING || array('error' => true, 'error_string' => STRING)
+    */
+    static public function api_method__sfw_logs($api_key, $data, $do_check = true){
+        
+        $request = array(
+            'auth_key' => $api_key,
+            'method_name' => 'sfw_logs',
+            'data' => json_encode($data),
+            'rows' => count($data),
+            'timestamp' => time()
+        );
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, 'sfw_logs') : $result;
+        
+        return $result;
+    }
+    
+    /*
+    * Wrapper for 2s_blacklists_db API method
+    * 
+    * returns mixed STRING || array('error' => true, 'error_string' => STRING)
+    */
+    static public function api_method__get_2s_blacklists_db($api_key, $do_check = true){
+        
+        $request = array(
+            'method_name' => '2s_blacklists_db',
+            'auth_key' => $api_key,         
+        );
+        
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, '2s_blacklists_db') : $result;
+        
+        return $result;
+    }
+    
+    /**
+     * Function gets access key automatically
+     *
+     * @param string website admin email
+     * @param string website host
+     * @param string website platform
+     * @return type
+     */
+    static public function api_method__get_api_key($email, $host, $platform, $agent = null, $timezone = null, $language = null, $ip = null, $do_check = true)
+    {       
+        $request = array(
+            'method_name'          => 'get_api_key',
+            'product_name'         => 'antispam',
+            'email'                => $email,
+            'website'              => $host,
+            'platform'             => $platform,
+            'agent'                => $agent,           
+            'timezone'             => $timezone,
+            'http_accept_language' => !empty($_SERVER['HTTP_ACCEPT_LANGUAGE']) ? $_SERVER['HTTP_ACCEPT_LANGUAGE'] : null,
+            'user_ip'              => $ip ? $ip : self::ip_get(array('real'), false),
+        );
+        
+        $result = self::api_send_request($request);
+        // $result = $do_check ? self::api_check_response($result, 'get_api_key') : $result;
+        
+        return $result;
+    }
+    
+    /**
+     * Function gets information about renew notice
+     *
+     * @param string api_key
+     * @return type
+     */
+    static public function api_method__notice_validate_key($api_key, $do_check = true)
+    {
+        $request = array(
+            'method_name' => 'notice_validate_key',
+            'auth_key' => $api_key,     
+        );
+        
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, 'notice_validate_key') : $result;
+        
+        return $result;
+    }
+    
+    /**
+     * Function gets information about renew notice
+     *
+     * @param string api_key
+     * @return type
+     */
+    static public function api_method__notice_paid_till($api_key, $do_check = true)
+    {
+        $request = array(
+            'method_name' => 'notice_paid_till',
+            'auth_key' => $api_key,
+        );
+        
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, 'notice_paid_till') : $result;
+        
+        return $result;
+    }
+
+    /**
+     * Function gets spam report
+     *
+     * @param string website host
+     * @param integer report days
+     * @return type
+     */
+    static public function api_method__get_antispam_report($host, $period = 1)
+    {
+        $request=Array(
+            'method_name' => 'get_antispam_report',
+            'hostname' => $host,
+            'period' => $period,
+        );
+        
+        $result = self::api_send_request($request);
+        // $result = $do_check ? self::api_check_response($result, 'get_antispam_report') : $result;
+        
+        return $result;
+    }
+
+    /**
+     * Function gets information about account
+     *
+     * @param string api_key
+     * @param string perform check flag
+     * @return mixed (STRING || array('error' => true, 'error_string' => STRING))
+     */
+    static public function api_method__get_account_status($api_key, $do_check = true)
+    {
+        $request = array(
+            'method_name' => 'get_account_status',
+            'auth_key' => $api_key
+        );
+        
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, 'get_account_status') : $result;
+        
+        return $result;
+    }
+
+    /**
+     * Function gets spam statistics
+     *
+     * @param string website host
+     * @param integer report days
+     * @return type
+     */
+    static public function api_method__get_antispam_report_breif($api_key, $do_check = true)
+    {
+        
+        $request = array(
+            'method_name' => 'get_antispam_report_breif',
+            'auth_key' => $api_key,     
+        );
+        
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, 'get_antispam_report_breif') : $result;
+        
+        $tmp = array();
+        for( $i = 0; $i < 7; $i++ )
+            $tmp[ date( 'Y-m-d', time() - 86400 * 7 + 86400 * $i ) ] = 0;
+        
+        $result['spam_stat']    = array_merge( $tmp, isset($result['spam_stat']) ? $result['spam_stat'] : array() );
+        $result['top5_spam_ip'] = isset($result['top5_spam_ip']) ? $result['top5_spam_ip'] : array();
+        
+        return $result;     
+    }
+    
+    /**
+     * Function gets spam report
+     *
+     * @param string website host
+     * @param integer report days
+     * @return type
+     */
+    static public function api_method__spam_check_cms($api_key, $data, $date = null, $do_check = true)
+    {
+        $request=Array(
+            'method_name' => 'spam_check_cms',
+            'auth_key' => $api_key,
+            'data' => is_array($data) ? implode(',',$data) : $data,         
+        );
+        
+        if($date) $request['date'] = $date;
+        
+        $result = self::api_send_request($request, self::URL, false, 6);
+        $result = $do_check ? self::api_check_response($result, 'spam_check_cms') : $result;
+        
+        return $result;
+    }
+    
+    /**
+     * Function sends empty feedback for version comparison in Dashboard
+     *
+     * @param string api_key
+     * @param string agent-version
+     * @param bool perform check flag
+     * @return mixed (STRING || array('error' => true, 'error_string' => STRING))
+     */
+    static public function api_method_send_empty_feedback($api_key, $agent, $do_check = true){
+        
+        $request = array(
+            'method_name' => 'send_feedback',
+            'auth_key' => $api_key,
+            'feedback' => 0 . ':' . $agent,
+        );
+        
+        $result = self::api_send_request($request);
+        $result = $do_check ? self::api_check_response($result, 'send_feedback') : $result;
+        
+        return $result;
+    }
+
+    /**
+     * Function sends raw request to API server
+     *
+     * @param string url of API server
+     * @param array data to send
+     * @param boolean is data have to be JSON encoded or not
+     * @param integer connect timeout
+     * @return type
+     */
+    static public function api_send_request($data, $url = self::URL, $isJSON = false, $timeout=3, $ssl = false)
+    {   
+        
+        $result = null;
+        $curl_error = false;
+        
+        $original_data = $data;
+        
+        if(!$isJSON){
+            $data = http_build_query($data);
+            $data = str_replace("&amp;", "&", $data);
+        }else{
+            $data = json_encode($data);
+        }
+        
+        if (function_exists('curl_init') && function_exists('json_decode')){
+        
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array('Expect:'));
+            
+            if ($ssl === true) {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            }else{
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            }
+            
+            $result = curl_exec($ch);
+            
+            if($result === false){
+                if($ssl === false){
+                    return self::api_send_request($original_data, $url, $isJSON, $timeout, true);
+                }
+                $curl_error = curl_error($ch);
+            }
+            
+            curl_close($ch);
+            
+        }else{
+            $curl_error = 'CURL_NOT_INSTALLED';
+        }
+        
+        if($curl_error){
+            
+            $opts = array(
+                'http'=>array(
+                    'method'  => "POST",
+                    'timeout' => $timeout,
+                    'content' => $data,
+                )
+            );
+            $context = stream_context_create($opts);
+            $result = @file_get_contents($url, 0, $context);
+        }
+        
+        if(!$result && $curl_error)
+            return json_encode(array('error' => true, 'error_string' => $curl_error));
+        
+        return $result;
+    }
+
+    /**
+     * Function checks server response
+     *
+     * @param string result
+     * @param string request_method
+     * @return mixed (array || array('error' => true))
+     */
+    static public function api_check_response($result, $method_name = null)
+    {   
+        
+        // Errors handling
+        
+        // Bad connection
+        if(empty($result)){
+            return array(
+                'error' => true,
+                'error_string' => 'CONNECTION_ERROR'
+            );
+        }
+        
+        // JSON decode errors
+        $result = json_decode($result, true);
+        if(empty($result)){
+            return array(
+                'error' => true,
+                'error_string' => 'JSON_DECODE_ERROR'
+            );
+        }
+        
+        // cURL error
+        if(!empty($result['error'])){
+            return array(
+                'error' => true,
+                'error_string' => 'CONNECTION_ERROR: ' . $result['error_string'],
+            );
+        }
+        
+        // Server errors
+        if($result && (isset($result['error_no']) || isset($result['error_message']))){
+            return array(
+                'error' => true,
+                'error_string' => "SERVER_ERROR NO: {$result['error_no']} MSG: {$result['error_message']}",
+                'error_no' => $result['error_no'],
+                'error_message' => $result['error_message']
+            );
+        }
+        
+        // Pathces for different methods
+        
+        // mehod_name = notice_validate_key
+        if($method_name == 'notice_validate_key' && isset($result['valid'])){
+            return $result;
+        }
+        
+        // Other methods
+        if(isset($result['data']) && is_array($result['data'])){
+            return $result['data'];
+        }
+    }
+    
+    static public function is_json($string)
+    {
+        return is_string($string) && is_array(json_decode($string, true)) ? true : false;
+    }
+
+    /* 
+     * If Apache web server is missing then making
+     * Patch for apache_request_headers() 
+     */
+    static function apache_request_headers(){
+        
+        $headers = array(); 
+        foreach($_SERVER as $key => $val){
+            if(preg_match('/\AHTTP_/', $key)){
+                $server_key = preg_replace('/\AHTTP_/', '', $key);
+                $key_parts = explode('_', $server_key);
+                if(count($key_parts) > 0 and strlen($server_key) > 2){
+                    foreach($key_parts as $part_index => $part){
+                        $key_parts[$part_index] = mb_strtolower($part);
+                        $key_parts[$part_index][0] = strtoupper($key_parts[$part_index][0]);                    
+                    }
+                    $server_key = implode('-', $key_parts);
+                }
+                $headers[$server_key] = $val;
+            }
+        }
+        return $headers;
+    }   
 }
