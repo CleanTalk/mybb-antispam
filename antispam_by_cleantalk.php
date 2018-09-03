@@ -47,27 +47,21 @@ function savesettings_trigger()
     else 
     {
         $api_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
-        $result = noticePaidTill($api_key); 
+        $result = CleantalkHelper::api_method__notice_paid_till($api_key); 
         if ($result)
         {
-            $result = json_decode($result, true);
-            if (isset($result['data']) && is_array($result['data']))
-                $result = $result['data'];
-            else
+            if ($result['error_message'] == 'Data not found.' && $result['error_no'] == 12)
             {
-                if ($result['error_message'] == 'Data not found.' && $result['error_no'] == 12)
-                {
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1); 
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>',1);
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);   
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);  
-                    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>').'#', '',1); 
-                        find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>',1);
-                }
+                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1); 
+                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>',1);
+                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
+                "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
+                "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);   
+                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
+                "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
+                "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);  
+                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>').'#', '',1); 
+                    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>',1);
             }
             if (isset($result['show_notice'])){
                 if ($result['show_notice'] == 1 && isset($result['trial']) && $result['trial'] == 1){
