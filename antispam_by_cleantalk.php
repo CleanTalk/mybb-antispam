@@ -23,89 +23,42 @@ $plugins->add_hook('newreply_do_newreply_start', 'antispam_by_cleantalk_trigger'
 $plugins->add_hook('editpost_do_editpost_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('member_do_register_start', 'antispam_by_cleantalk_regtrigger');
 $plugins->add_hook('contact_do_start', 'antispam_by_cleantalk_contacttrigger');
-$plugins->add_hook('global_start', 'antispam_by_cleantalk_setcookies');
+$plugins->add_hook('global_start', 'antispam_by_cleantalk_set_global');
 $plugins->add_hook('admin_config_settings_change_commit', 'savesettings_trigger');
 
 function savesettings_trigger()
 {
     global $mybb,$db;
-    $query = $db->simple_select('settinggroups', '*', "name='antispam_by_cleantalk'");
-    $app = $db->fetch_array($query);
+
     require_once MYBB_ROOT."/inc/adminfunctions_templates.php";
-    $settings_link = 'admin/index.php?module=config-settings&action=change&gid='.$app['gid'];
-    if (trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1); 
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>',1);
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);   
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);  
-                    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>').'#', '',1); 
-    }
-    else 
+
+    $access_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
+
+    if ($access_key != '')
     {
-        $api_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
-        $result = CleantalkHelper::api_method__notice_paid_till($api_key); 
-        if ($result)
-        {
-            if ($result['error_message'] == 'Data not found.' && $result['error_no'] == 12)
-            {
-                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1); 
-                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>',1);
-                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);   
-                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
-                "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);  
-                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>').'#', '',1); 
-                    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>',1);
-            }
-            if (isset($result['show_notice'])){
-                if ($result['show_notice'] == 1 && isset($result['trial']) && $result['trial'] == 1){
-                        find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1); 
-                        find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>',1);
-                }
-                if ($result['show_notice'] == 1 && isset($result['renew']) && $result['renew'] == 1){
-                        find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1); 
-                        find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li>').'#', '<li><a href="{$mybb->settings[\'bburl\']}/{$admin_dir}/index.php" class="admincp">{$lang->welcome_admin}</a></li><li>'.sprintf("%s license period ends, please renew to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>',1);
-                }
-                 if ($result['show_notice'] == 0 && isset($result['renew']) && $result['renew'] == 0 && isset($result['trial']) && $result['trial'] == 0){
-                            find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1); 
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);   
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);  
-                    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>').'#', '',1); 
-                }                                
-            }
-        }     
-     find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1);  
+    	CleantalkHelper::api_method_send_empty_feedback($access_key, ENGINE);
+
+	    if ($mybb->settings['antispam_by_cleantalk_sfw'] === '1')
+	    {
+	    	$sfw = new CleantalkSFW();
+	    	$sfw->update_sfw($access_key);
+	    	$sfw->send_logs($access_key);
+	    }    	
     }
 
-    if ($mybb->settings['antispam_by_cleantalk_footerlink'] === '1'){
-    find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>').'#', '',1); 
-    find_replace_templatesets("footer", '#'.preg_quote('{$auto_dst_detection}').'#', '<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>
-        {$auto_dst_detection}',1); 
-}
+    if ($mybb->settings['antispam_by_cleantalk_footerlink'] === '1')
+    {
+	    find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>').'#', '',1); 
+	    find_replace_templatesets("footer", '#'.preg_quote('{$auto_dst_detection}').'#', '<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>
+	        {$auto_dst_detection}',1); 
+	}
     else 
-    find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>').'#', '',1); 
+    	find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>').'#', '',1); 
 
     
 }
-function antispam_by_cleantalk_info(){
+function antispam_by_cleantalk_info()
+{
 	return Array(
 		"name" => "Antispam by CleanTalk (SPAM protection)",
 		"description" => "Max power, all-in-one, no Captcha, premium anti-spam plugin. No comment spam, no registration spam. Formerly Anti-Spam by CleanTalk",
@@ -118,7 +71,8 @@ function antispam_by_cleantalk_info(){
 	);
 }
 
-function antispam_by_cleantalk_install(){
+function antispam_by_cleantalk_install()
+{
 	global $db;
 	$ap_group = Array(
 		'name'			=> "antispam_by_cleantalk",
@@ -160,6 +114,15 @@ function antispam_by_cleantalk_install(){
 		'disporder'		=> 3,
 		'gid'			=> $gid
 	);
+	$antispam_by_cleantalk_settings[] = Array(
+		'name'			=> "antispam_by_cleantalk_sfw",
+		'title'			=> "Enable SFW",
+		'description'	=> "This option allows to filter spam bots before they access website. Also reduces CPU usage on hosting server and accelerates pages load time",
+		'optionscode'	=> "yesno",
+		'value'			=> "1",
+		'disporder'		=> 4,
+		'gid'			=> $gid
+	);	
 
     $antispam_by_cleantalk_settings[] = Array(
         'name'          => "antispam_by_cleantalk_footerlink",
@@ -167,7 +130,7 @@ function antispam_by_cleantalk_install(){
         'description'   => "Enabling this option places a small link in the footer of your site that lets others know what anti-spam tool protects your site.",
         'optionscode'   => "yesno",
         'value'         => "0",
-        'disporder'     => 4,
+        'disporder'     => 5,
         'gid'           => $gid
     );
 
@@ -177,7 +140,7 @@ function antispam_by_cleantalk_install(){
 		'description'	=> "To get an access key, please register <a target=_blank href=https://cleantalk.org/register>here</a>",
 		'optionscode'	=> "text",
 		'value'			=> "",
-		'disporder'		=> 5,
+		'disporder'		=> 6,
 		'gid'			=> $gid
 	);
 	
@@ -204,36 +167,176 @@ function antispam_by_cleantalk_install(){
 	);
 
 	$db->insert_query('templates', $insert_array);
+
+	$db->query("CREATE TABLE IF NOT EXISTS ".TABLE_PREFIX."cleantalk_sfw (
+	  `network` int(10) unsigned NOT NULL,
+	  `mask` int(10) unsigned NOT NULL,
+	  PRIMARY KEY (`network`)
+	) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+	");
+
+	$db->query("CREATE TABLE IF NOT EXISTS ".TABLE_PREFIX."cleantalk_sfw_logs (
+	  `ip` varchar(15) NOT NULL,
+	  `all_entries` int(11) NOT NULL,
+	  `blocked_entries` int(11) NOT NULL,
+	  `entries_timestamp` int(11) NOT NULL,	  	  
+	  PRIMARY KEY (`ip`)
+	) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+	");	
 }
 
-function antispam_by_cleantalk_uninstall(){
+function antispam_by_cleantalk_uninstall()
+{
 	global $db;
-    $query = $db->simple_select('settinggroups', '*', "name='antispam_by_cleantalk'");
-    $app = $db->fetch_array($query);
-        require_once MYBB_ROOT."/inc/adminfunctions_templates.php";
-    $settings_link = 'admin/index.php?module=config-settings&action=change&gid='.$app['gid'];
-                                find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Please enter the Access key in <a href='.$settings_link.'>Antispam by CleanTalk</a> plugin settings to enable protection from spam!</li>').'#', '',1); 
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s trial period ends, please upgrade to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%20backend%20trial$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);   
-    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>'.sprintf("%s license period ends, please renew to %s!", 
-                    "<a href='{$settings_link}'>Antispam by CleanTalk</a>", 
-                    "<a href=\"http://cleantalk.org/my/bill/recharge?utm_source=mybb-backend&utm_medium=cpc&utm_campaign=mybb%%20backend%%20renew$user_token&cp_mode=antispam\" target=\"_blank\"><b>premium version</b></a>").'</li>').'#', '',1);  
-                    find_replace_templatesets("header_welcomeblock_member_admin", '#'.preg_quote('<li>Wrong access key! Please <a href='.$settings_link.'>check it</a> or ask <a target=_blank href=https://cleantalk.org/forum/>support</a>.</li>').'#', '',1); 
+
 	$db->delete_query("settings", "name IN ('antispam_by_cleantalk_enabled','antispam_by_cleantalk_regcheck','antispam_by_cleantalk_comcheck','antispam_by_cleantalk_footerlink','antispam_by_cleantalk_accesskey')");
 	$db->delete_query("settinggroups", "name='antispam_by_cleantalk'");
 	$db->delete_query("templates", "title = 'antispam_by_cleantalk_error_page'");
+	$db->drop_table("cleantalk_sfw");
+	$db->drop_table("cleantalk_sfw_logs");
 
 	rebuild_settings();
 }
 
-function antispam_by_cleantalk_is_installed(){
+function antispam_by_cleantalk_is_installed()
+{
 	global $db;
 	$query = $db->simple_select('settinggroups', '*', "name='antispam_by_cleantalk'");
 	if ($db->num_rows($query)){
 		return true;
 	}
 	return false;
+}
+function antispam_by_cleantalk_sfw_check()
+{
+	global $mybb;
+
+	if ($mybb->settings['antispam_by_cleantalk_sfw'] === '1')
+	{
+	   	$is_sfw_check = true;
+		$sfw = new CleantalkSFW();
+		$sfw->ip_array = (array)CleantalkSFW::ip_get(array('real'), true);	
+			
+        foreach($sfw->ip_array as $key => $value)
+        {
+	        if(isset($_COOKIE['ct_sfw_pass_key']) && $_COOKIE['ct_sfw_pass_key'] == md5($value . trim($mybb->settings['antispam_by_cleantalk_accesskey'])))
+	        {
+	          $is_sfw_check=false;
+	          if(isset($_COOKIE['ct_sfw_passed']))
+	          {
+	            @setcookie ('ct_sfw_passed'); //Deleting cookie
+	            $sfw->sfw_update_logs($value, 'passed');
+	          }
+	        }
+      	} unset($key, $value);	
+
+		if($is_sfw_check)
+		{
+			$sfw->check_ip();
+			if($sfw->result)
+			{
+				$sfw->sfw_update_logs($sfw->blocked_ip, 'blocked');
+				$sfw->sfw_die(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
+			}
+		}	      				
+	}	
+}
+function antispam_by_cleantalk_set_global()
+{
+	antispam_by_cleantalk_setcookies();
+
+	antispam_by_cleantalk_sfw_check();
+
+	antispam_by_cleantalK_add_js();
+
+}
+function antispam_by_cleantalK_add_js()
+{
+	global $mybb;
+
+	if (trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '')
+	{
+		$ct_checkjs_val = md5(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
+		echo '<script>var ct_check_js_val = '.$ct_checkjs_val.', d = new Date(), 
+				ctTimeMs = new Date().getTime(),
+				ctMouseEventTimerFlag = true, //Reading interval flag
+				ctMouseData = "[",
+				ctMouseDataCounter = 0;
+			
+			function ctSetCookie(c_name, value) {
+				document.cookie = c_name + "=" + encodeURIComponent(value) + "; path=/";
+			}
+			ctSetCookie("ct_checkjs", ct_checkjs_val);
+			ctSetCookie("ct_ps_timestamp", Math.floor(new Date().getTime()/1000));
+			ctSetCookie("ct_fkp_timestamp", "0");
+			ctSetCookie("ct_pointer_data", "0");
+			ctSetCookie("ct_timezone", "0");
+			setTimeout(function(){
+				ctSetCookie("ct_timezone", d.getTimezoneOffset()/60*(-1));
+			},1000);
+			
+			//Reading interval
+			var ctMouseReadInterval = setInterval(function(){
+					ctMouseEventTimerFlag = true;
+				}, 150);
+				
+			//Writting interval
+			var ctMouseWriteDataInterval = setInterval(function(){
+					var ctMouseDataToSend = ctMouseData.slice(0,-1).concat("]");
+					ctSetCookie("ct_pointer_data", ctMouseDataToSend);
+				}, 1200);
+			
+			//Stop observing function
+			function ctMouseStopData(){
+				if(typeof window.addEventListener == "function")
+					window.removeEventListener("mousemove", ctFunctionMouseMove);
+				else
+					window.detachEvent("onmousemove", ctFunctionMouseMove);
+				clearInterval(ctMouseReadInterval);
+				clearInterval(ctMouseWriteDataInterval);				
+			}
+			
+			//Logging mouse position each 300 ms
+			var ctFunctionMouseMove = function output(event){
+				if(ctMouseEventTimerFlag == true){
+					var mouseDate = new Date();
+					ctMouseData += "[" + Math.round(event.pageY) + "," + Math.round(event.pageX) + "," + Math.round(mouseDate.getTime() - ctTimeMs) + "],";
+					ctMouseDataCounter++;
+					ctMouseEventTimerFlag = false;
+					if(ctMouseDataCounter >= 100)
+						ctMouseStopData();
+				}
+			}
+			
+			//Stop key listening function
+			function ctKeyStopStopListening(){
+				if(typeof window.addEventListener == "function"){
+					window.removeEventListener("mousedown", ctFunctionFirstKey);
+					window.removeEventListener("keydown", ctFunctionFirstKey);
+				}else{
+					window.detachEvent("mousedown", ctFunctionFirstKey);
+					window.detachEvent("keydown", ctFunctionFirstKey);
+				}
+			}
+			
+			//Writing first key press timestamp
+			var ctFunctionFirstKey = function output(event){
+				var KeyTimestamp = Math.floor(new Date().getTime()/1000);
+				ctSetCookie("ct_fkp_timestamp", KeyTimestamp);
+				ctKeyStopStopListening();
+			}
+
+			if(typeof window.addEventListener == "function"){
+				window.addEventListener("mousemove", ctFunctionMouseMove);
+				window.addEventListener("mousedown", ctFunctionFirstKey);
+				window.addEventListener("keydown", ctFunctionFirstKey);
+			}else{
+				window.attachEvent("onmousemove", ctFunctionMouseMove);
+				window.attachEvent("mousedown", ctFunctionFirstKey);
+				window.attachEvent("keydown", ctFunctionFirstKey);
+			}</script>';		
+	}
+
 }
 function antispam_by_cleantalk_setcookies(){
     global $mybb;
@@ -293,7 +396,7 @@ function antispam_by_cleantalk_trigger(){
     {
         $ct_result = antispam_by_cleantalk_spam_check(
             'check_message', array(
-                'message' => $mybb->get_input('message') . " \n\n" . $$mybb->get_input('subject'),
+                'message' => $mybb->get_input('message') . " \n\n" . $mybb->get_input('subject'),
                 'sender_email' => isset($mybb->user['email']) ? $mybb->user['email'] : '',
                 'sender_nickname' => isset($mybb->user['username']) ? $mybb->user['username'] : '',
             )
@@ -329,7 +432,7 @@ function antispam_by_cleantalk_contacttrigger()
     }
         $ct_result = antispam_by_cleantalk_spam_check(
             'check_message', array(
-                'message' => $mybb->get_input('message') . " \n\n" . $$mybb->get_input('subject'),
+                'message' => $mybb->get_input('message') . " \n\n" . $mybb->get_input('subject'),
                 'sender_email' => $mybb->get_input('email'),
                 'sender_nickname' => isset($mybb->user['username']) ? $mybb->user['username'] : '',
             )
@@ -350,6 +453,11 @@ function antispam_by_cleantalk_spam_check($method, $params)
     foreach ($params as $k => $v) 
         $ct_request->$k = $v;
 
+    $page_set_timestamp = (isset($_COOKIE['ct_ps_timestamp']) ? $_COOKIE['ct_ps_timestamp'] : 0);
+    $js_timezone = (isset($_COOKIE['ct_timezone']) ? $_COOKIE['ct_timezone'] : '');
+    $first_key_timestamp = (isset($_COOKIE['ct_fkp_timestamp']) ? $_COOKIE['ct_fkp_timestamp'] : '');
+    $pointer_data = (isset($_COOKIE['ct_pointer_data']) ? json_decode($_COOKIE['ct_pointer_data']) : '');
+
     $ct_request->auth_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
     $ct_request->sender_ip = CleantalkHelper::ip_get(array('real'), false);
     $ct_request->x_forwarded_for = CleantalkHelper::ip_get(array('x_forwarded_for'), false);
@@ -362,8 +470,13 @@ function antispam_by_cleantalk_spam_check($method, $params)
         'REFFERRER' => $_SERVER['HTTP_REFERER'],
         'USER_AGENT' => $_SERVER['HTTP_USER_AGENT'],
         'REFFERRER_PREVIOUS' => isset($_COOKIE['ct_prev_referer'])?$_COOKIE['ct_prev_referer']:0,     
-        'cookies_enabled' => antispam_by_cleantalk_testcokkies(),   
+        'cookies_enabled' => antispam_by_cleantalk_testcokkies(), 
+        'js_timezone' => $js_timezone,
+        'mouse_cursor_positions' => $pointer_data,
+        'key_press_timestamp' => $first_key_timestamp,
+        'page_set_timestamp' => $page_set_timestamp,          
     ));    
+    
     switch ($method) 
     {
         case 'check_message':
@@ -2020,4 +2133,301 @@ class CleantalkHelper
         }
         return $headers;
     }   
+}
+class CleantalkSFW extends CleantalkHelper
+{
+	public $ip = 0;
+	public $ip_str = '';
+	public $ip_array = Array();
+	public $ip_str_array = Array();
+	public $blocked_ip = '';
+	public $passed_ip = '';
+	public $result = false;
+	
+	//Database variables
+	private $table_prefix;
+	private $db;
+	private $query;
+	private $db_result;
+	private $db_result_data = array();
+	
+	public function __construct()
+	{
+		global $db;
+		$this->table_prefix = TABLE_PREFIX;
+		$this->db = $db;
+	}
+	
+	public function unversal_query($query, $straight_query = false)
+	{
+		if($straight_query)
+			$this->db_result = $this->db->query($query);
+		else
+			$this->query = $query;
+	}
+	
+	public function unversal_fetch()
+	{
+		$this->db_result_data = $this->db->fetch_field($this->query);
+	}
+	
+	public function unversal_fetch_all()
+	{
+		$this->db_result_data = $this->db->fetch_array($this->query);
+	}
+	
+	
+	/*
+	*	Getting arrays of IP (REMOTE_ADDR, X-Forwarded-For, X-Real-Ip, Cf_Connecting_Ip)
+	*	reutrns array('remote_addr' => 'val', ['x_forwarded_for' => 'val', ['x_real_ip' => 'val', ['cloud_flare' => 'val']]])
+	*/
+	static public function ip_get($ips_input = array('real', 'remote_addr', 'x_forwarded_for', 'x_real_ip', 'cloud_flare'), $v4_only = true){
+		
+		$result = (array)parent::ip_get($ips_input, $v4_only);
+		
+		$result = !empty($result) ? $result : array();
+		
+		if(isset($_GET['sfw_test_ip'])){
+			if(self::ip_validate($_GET['sfw_test_ip']) !== false)
+				$result['sfw_test'] = $_GET['sfw_test_ip'];
+		}
+		
+		return $result;
+		
+	}
+	
+	/*
+	*	Checks IP via Database
+	*/
+	public function check_ip(){
+		
+		foreach($this->ip_array as $current_ip){
+		
+			$query = "SELECT 
+				COUNT(network) AS cnt
+				FROM ".$this->table_prefix."cleantalk_sfw
+				WHERE network = ".sprintf("%u", ip2long($current_ip))." & mask";
+			$this->unversal_query($query);
+			$this->unversal_fetch();
+			
+			if($this->db_result_data['cnt']){
+				$this->result = true;
+				$this->blocked_ip = $current_ip;
+			}else{
+				$this->passed_ip = $current_ip;
+			}
+		}
+	}
+		
+	/*
+	*	Add entry to SFW log
+	*/
+	public function sfw_update_logs($ip, $result){
+		
+		if($ip === NULL || $result === NULL){
+			return;
+		}
+		
+		$blocked = ($result == 'blocked' ? ' + 1' : '');
+		$time = time();
+
+		$query = "INSERT INTO ".$this->table_prefix."cleantalk_sfw_logs
+		SET 
+			ip = '$ip',
+			all_entries = 1,
+			blocked_entries = 1,
+			entries_timestamp = '".intval($time)."'
+		ON DUPLICATE KEY 
+		UPDATE 
+			all_entries = all_entries + 1,
+			blocked_entries = blocked_entries".strval($blocked).",
+			entries_timestamp = '".intval($time)."'";
+
+		$this->unversal_query($query,true);
+	}
+	
+	/*
+	* Updates SFW local base
+	* 
+	* return mixed true || array('error' => true, 'error_string' => STRING)
+	*/
+	public function sfw_update($ct_key){
+		
+		$result = self::api_method__get_2s_blacklists_db($ct_key);
+		
+		if(empty($result['error'])){
+			
+			$this->unversal_query("TRUNCATE TABLE ".$this->table_prefix."cleantalk_sfw",true);
+						
+			// Cast result to int
+			foreach($result as $value){
+				$value[0] = intval($value[0]);
+				$value[1] = intval($value[1]);
+			} unset($value);
+			
+			$query="INSERT INTO ".$this->table_prefix."cleantalk_sfw VALUES ";
+			for($i=0, $arr_count = count($result); $i < $arr_count; $i++){
+				if($i == count($result)-1){
+					$query.="(".$result[$i][0].",".$result[$i][1].")";
+				}else{
+					$query.="(".$result[$i][0].",".$result[$i][1]."), ";
+				}
+			}
+			$this->unversal_query($query,true);
+			
+			return true;
+			
+		}else{
+			return $result;
+		}
+	}
+	
+	/*
+	* Sends and wipe SFW log
+	* 
+	* returns mixed true || array('error' => true, 'error_string' => STRING)
+	*/
+	public function send_logs($ct_key){
+		
+		//Getting logs
+		$query = "SELECT * FROM ".$this->table_prefix."cleantalk_sfw_logs";
+		$this->unversal_query($query);
+		$this->unversal_fetch_all();
+		
+		if(count($this->db_result_data)){
+			
+			//Compile logs
+			$data = array();
+			foreach($this->db_result_data as $key => $value){
+				$data[] = array(trim($value['ip']), $value['all_entries'], $value['all_entries']-$value['blocked_entries'], $value['entries_timestamp']);
+			}
+			unset($key, $value);
+			
+			//Sending the request
+			$result = self::api_method__sfw_logs($ct_key, $data);
+			
+			//Checking answer and deleting all lines from the table
+			if(empty($result['error'])){
+				if($result['rows'] == count($data)){
+					$this->unversal_query("TRUNCATE TABLE ".$this->table_prefix."cleantalk_sfw_logs",true);
+					return true;
+				}
+			}else{
+				return $result;
+			}
+				
+		}else{
+			return array('error' => true, 'error_string' => 'NO_LOGS_TO_SEND');
+		}
+	}
+	
+	/*
+	* Shows DIE page
+	* 
+	* Stops script executing
+	*/	
+	public function sfw_die($api_key, $cookie_prefix = '', $cookie_domain = ''){
+		
+		$sfw_die_page = '<!doctype html>
+
+		<html lang="en">
+		<head>
+		    <meta charset="utf-8">
+		    <meta name="viewport" content="width=device-width, initial-scale=1">
+		    <meta http-equiv="ñache-ñontrol" content="no-cache">
+		    <meta http-equiv="ñache-ñontrol" content="private">
+		    <meta http-equiv="ñache-ñontrol" content="max-age=0, must-revalidate">
+		    <meta http-equiv="ñache-ñontrol" content="max-age=0, proxy-revalidate">
+		    <meta http-equiv="expires" content="0" />
+		    <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
+		    <meta http-equiv="pragma" content="no-cache" />
+
+		    <title>Blacklisted</title> 
+
+		  <!--[if lt IE 9]>
+		  <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+		  <![endif]-->
+		<style>
+		    html{font-size: 10pt;font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;background: #f1f1f1;}
+		    h1{text-align:center}
+		    a:hover,
+		    a:active {
+		            color: #00a0d2;
+		    }
+		    h1.main{margin-top: 1em;margin-bottom: 3em;}
+		    div.container {text-align:center;
+		                background: #fff;
+		            color: #444;
+		            margin: 2em auto;
+		            padding: 1em 2em;
+		            max-width: 700px;
+		            -webkit-box-shadow: 0 1px 3px rgba(0,0,0,0.13);
+		            box-shadow: 0 1px 3px rgba(0,0,0,0.13);}
+		    div.container p.js_notice{width: 100%%; display: inline-block;}
+		    div.footer {color: #666; position: absolute; bottom: 1em; text-align: center; width: 99%;}
+		    div.footer a {color: #666; vertical-align:bottom; text-align: center;}
+		    div#js_passed {display:none;}
+		    @media (max-width: 600px) {
+		    }
+		</style>
+		<script>
+		var reload_timeout = 3000;
+		function set_spamFireWallCookie(cookie_name, cookie_value) {
+		    document.cookie = cookie_name + "=" + escape(cookie_value) + "; path=/;";
+		    return null;
+		}
+		function get_current_url() {
+		    document.write(window.location.href);
+		    return null;
+		}
+		</script>
+		</head>
+
+		<body>
+		    <div class="container">
+		        <h1 class="main">SpamFireWall is activated for your IP <a href="https://cleantalk.org/blacklists/{REMOTE_ADDRESS}" target="_blank">{REMOTE_ADDRESS}</a></h1>
+		        
+		        <div id="js_info"><br />To continue working with web site, please make sure that you have enabled JavaScript.</div>
+		        
+		        <div id="js_passed">
+		        <h3>Please click bellow to pass protection</h3>
+		        <a href="{REQUEST_URI}"><script>get_current_url();</script></a>
+		        <br /><br /><br />
+		        <p class="js_notice">Or you will be automatically redirected to the requested page after 3 seconds</p>
+		        </div>
+		    </div>
+		    <div class="footer">
+		    <a href="https://cleantalk.org" target="_blank">Anti-Spam by CleanTalk</a>
+		    </div>
+		    <script type="text/javascript">
+		        document.getElementById("js_info").style.display = "none";
+		        document.getElementById("js_passed").style.display = "block";
+		        set_spamFireWallCookie("ct_sfw_pass_key","{SFW_COOKIE}");
+		        set_spamFireWallCookie("ct_sfw_passed","1");
+		        setTimeout(function(){
+		            window.location.reload(1);
+		        }, reload_timeout);
+		    </script>
+		</body>
+		</html>';
+		// Service info
+		$sfw_die_page = str_replace('{REMOTE_ADDRESS}', $this->blocked_ip, $sfw_die_page);
+		$sfw_die_page = str_replace('{REQUEST_URI}', $_SERVER['REQUEST_URI'], $sfw_die_page);
+		$sfw_die_page = str_replace('{SFW_COOKIE}', md5($this->blocked_ip.$api_key), $sfw_die_page);
+		
+		// Headers
+		if(headers_sent() === false){
+			header('Expires: '.date(DATE_RFC822, mktime(0, 0, 0, 1, 1, 1971)));
+			header('Cache-Control: no-store, no-cache, must-revalidate');
+			header('Cache-Control: post-check=0, pre-check=0', FALSE);
+			header('Pragma: no-cache');
+			header("HTTP/1.0 403 Forbidden");
+			$sfw_die_page = str_replace('{GENERATED}', "", $sfw_die_page);
+		}else{
+			$sfw_die_page = str_replace('{GENERATED}', "<h2 class='second'>The page was generated at&nbsp;".date("D, d M Y H:i:s")."</h2>",$sfw_die_page);
+		}
+		
+		die($sfw_die_page);
+		
+	}
 }
