@@ -41,7 +41,7 @@ function savesettings_trigger()
 	    if ($mybb->settings['antispam_by_cleantalk_sfw'] === '1')
 	    {
 	    	$sfw = new CleantalkSFW();
-	    	$sfw->update_sfw($access_key);
+	    	$sfw->sfw_update($access_key);
 	    	$sfw->send_logs($access_key);
 	    }    	
     }
@@ -257,15 +257,17 @@ function antispam_by_cleantalK_add_js()
 	if (trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '')
 	{
 		$ct_checkjs_val = md5(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
-		echo '<script>var ct_check_js_val = '.$ct_checkjs_val.', d = new Date(), 
+		echo '<script><!--
+		var ct_checkjs_val = \''.$ct_checkjs_val.'\', d = new Date(), 
 				ctTimeMs = new Date().getTime(),
 				ctMouseEventTimerFlag = true, //Reading interval flag
 				ctMouseData = "[",
 				ctMouseDataCounter = 0;
 			
 			function ctSetCookie(c_name, value) {
-				document.cookie = c_name + "=" + encodeURIComponent(value) + "; path=/";
+				document.cookie = c_name + "=" + escape(value) + "; path=/;";
 			}
+
 			ctSetCookie("ct_checkjs", ct_checkjs_val);
 			ctSetCookie("ct_ps_timestamp", Math.floor(new Date().getTime()/1000));
 			ctSetCookie("ct_fkp_timestamp", "0");
@@ -334,7 +336,9 @@ function antispam_by_cleantalK_add_js()
 				window.attachEvent("onmousemove", ctFunctionMouseMove);
 				window.attachEvent("mousedown", ctFunctionFirstKey);
 				window.attachEvent("keydown", ctFunctionFirstKey);
-			}</script>';		
+			}
+			// -->
+			</script>';		
 	}
 
 }
@@ -346,12 +350,6 @@ function antispam_by_cleantalk_setcookies(){
         'cookies_names' => array(),
         'check_value' => trim($mybb->settings['antispam_by_cleantalk_accesskey']),
     );
-        
-    // Submit time
-    $apbct_timestamp = time();
-    setcookie('ct_timestamp', $apbct_timestamp, 0, '/');
-    $cookie_test_value['cookies_names'][] = 'ct_timestamp';
-    $cookie_test_value['check_value'] .= $apbct_timestamp;
 
     // Pervious referer
     if(!empty($_SERVER['HTTP_REFERER'])){
@@ -441,6 +439,12 @@ function antispam_by_cleantalk_contacttrigger()
             antispam_by_cleantalk_show_message($ct_result->comment);
     
 }
+function antispam_by_cleantalk_js_test()
+{
+	global $mybb;
+
+	return (isset($_COOKIE['ct_checkjs']) &&  md5(trim($mybb->settings['antispam_by_cleantalk_accesskey'])) == $_COOKIE['ct_checkjs']) ? true : false;
+}
 function antispam_by_cleantalk_spam_check($method, $params)
 {
     global $mybb;
@@ -463,8 +467,8 @@ function antispam_by_cleantalk_spam_check($method, $params)
     $ct_request->x_forwarded_for = CleantalkHelper::ip_get(array('x_forwarded_for'), false);
     $ct_request->x_real_ip       = CleantalkHelper::ip_get(array('x_real_ip'), false);
     $ct_request->agent = ENGINE;
-    $ct_request->js_on = 1;
-    $ct_request->submit_time = isset($_COOKIE['ct_timestamp']) ? time() - intval($_COOKIE['ct_timestamp']) : 0; 
+    $ct_request->js_on = antispam_by_cleantalk_js_test();
+    $ct_request->submit_time = time() - intval($page_set_timestamp);
     $ct_request->sender_info = json_encode(array(
         'page_url' => htmlspecialchars(@$_SERVER['SERVER_NAME'].@$_SERVER['REQUEST_URI']),
         'REFFERRER' => $_SERVER['HTTP_REFERER'],
@@ -2168,12 +2172,14 @@ class CleantalkSFW extends CleantalkHelper
 	
 	public function unversal_fetch()
 	{
-		$this->db_result_data = $this->db->fetch_field($this->query);
+		$this->db_result_data = $this->db->fetch_array($this->db_result);
 	}
 	
 	public function unversal_fetch_all()
 	{
-		$this->db_result_data = $this->db->fetch_array($this->query);
+		while ($row = $this->db->fetch_array($this->db_result)){
+			$this->db_result_data[] = $row;
+		}
 	}
 	
 	
@@ -2207,9 +2213,9 @@ class CleantalkSFW extends CleantalkHelper
 				COUNT(network) AS cnt
 				FROM ".$this->table_prefix."cleantalk_sfw
 				WHERE network = ".sprintf("%u", ip2long($current_ip))." & mask";
-			$this->unversal_query($query);
+			$this->unversal_query($query,true);
 			$this->unversal_fetch();
-			
+
 			if($this->db_result_data['cnt']){
 				$this->result = true;
 				$this->blocked_ip = $current_ip;
@@ -2291,7 +2297,7 @@ class CleantalkSFW extends CleantalkHelper
 		
 		//Getting logs
 		$query = "SELECT * FROM ".$this->table_prefix."cleantalk_sfw_logs";
-		$this->unversal_query($query);
+		$this->unversal_query($query,true);
 		$this->unversal_fetch_all();
 		
 		if(count($this->db_result_data)){
