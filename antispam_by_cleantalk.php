@@ -394,8 +394,7 @@ function antispam_by_cleantalk_trigger(){
 	if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
 		return false;
 	}
-	
-	if ($mybb->user['postnum'] <= '3')
+	if ($mybb->user['postnum'] <= '3' && !$mybb->get_input("savedraft"))
     {
         $ct_result = antispam_by_cleantalk_spam_check(
             'check_message', array(
@@ -455,7 +454,7 @@ function antispam_by_cleantalk_spam_check($method, $params)
     global $mybb;
 
     $ct = new Cleantalk();
-    $ct->server_url = 'http://moderate.cleantalk.ru';
+    $ct->server_url = 'http://moderate.cleantalk.org';
 
     $ct_request = new CleantalkRequest();
 
@@ -485,7 +484,7 @@ function antispam_by_cleantalk_spam_check($method, $params)
         'key_press_timestamp' => $first_key_timestamp,
         'page_set_timestamp' => $page_set_timestamp,          
     ));    
-    
+
     switch ($method) 
     {
         case 'check_message':
