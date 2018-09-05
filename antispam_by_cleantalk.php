@@ -48,12 +48,12 @@ function savesettings_trigger()
 
     if ($mybb->settings['antispam_by_cleantalk_footerlink'] === '1')
     {
-	    find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>').'#', '',1); 
-	    find_replace_templatesets("footer", '#'.preg_quote('{$auto_dst_detection}').'#', '<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>
+	    find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/antispam-mybb>by CleanTalk.</a></div>').'#', '',1); 
+	    find_replace_templatesets("footer", '#'.preg_quote('{$auto_dst_detection}').'#', '<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/antispam-mybb>by CleanTalk.</a></div>
 	        {$auto_dst_detection}',1); 
 	}
     else 
-    	find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/vbulletin-anti-spam-hack>by CleanTalk.</a></div>').'#', '',1); 
+    	find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/antispam-mybb>by CleanTalk.</a></div>').'#', '',1); 
 
     
 }
