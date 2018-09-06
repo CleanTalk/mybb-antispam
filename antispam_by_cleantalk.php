@@ -50,15 +50,11 @@ function savesettings_trigger()
 		    	$sfw->send_logs($access_key);
 		    }    	
 	    }
-
-	    if ($mybb->settings['antispam_by_cleantalk_footerlink'] === '1')
-	    {
-		    find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/antispam-mybb>by CleanTalk.</a></div>').'#', '',1); 
+	    $db->delete_query("templates", "title='footer' AND sid='1'");
+	    
+	    if ($mybb->settings['antispam_by_cleantalk_footerlink'] === '1')	    	
 		    find_replace_templatesets("footer", '#'.preg_quote('{$auto_dst_detection}').'#', '<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/antispam-mybb>by CleanTalk.</a></div>
-		        {$auto_dst_detection}',1); 
-		}
-	    else 
-	    	find_replace_templatesets("footer", '#'.preg_quote('<div id=\'cleantalk_footer_link\' style=\'width:100%;text-align:center;\'>MyBB spam blocked <a href=https://cleantalk.org/antispam-mybb>by CleanTalk.</a></div>').'#', '',1);     	
+		        {$auto_dst_detection}',1);    	
     }
 
 
@@ -201,7 +197,8 @@ function antispam_by_cleantalk_uninstall()
 	$db->delete_query("templates", "title = 'antispam_by_cleantalk_error_page'");
 	$db->drop_table("cleantalk_sfw");
 	$db->drop_table("cleantalk_sfw_logs");
-
+	$db->delete_query("templates", "title='footer' AND sid='1'");
+	
 	rebuild_settings();
 }
 
@@ -447,7 +444,7 @@ function antispam_by_cleantalk_js_test()
 {
 	global $mybb;
 
-	return (isset($_COOKIE['ct_checkjs']) &&  md5(trim($mybb->settings['antispam_by_cleantalk_accesskey'])) == $_COOKIE['ct_checkjs']) ? true : false;
+	return (isset($_COOKIE['ct_checkjs']) &&  md5(trim($mybb->settings['antispam_by_cleantalk_accesskey'])) == $_COOKIE['ct_checkjs']) ? 1 : 0;
 }
 function antispam_by_cleantalk_spam_check($method, $params)
 {
