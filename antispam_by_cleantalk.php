@@ -192,7 +192,7 @@ function antispam_by_cleantalk_uninstall()
 {
 	global $db;
 
-	$db->delete_query("settings", "name IN ('antispam_by_cleantalk_enabled','antispam_by_cleantalk_regcheck','antispam_by_cleantalk_comcheck','antispam_by_cleantalk_footerlink','antispam_by_cleantalk_accesskey')");
+	$db->delete_query("settings", "name IN ('antispam_by_cleantalk_enabled','antispam_by_cleantalk_regcheck','antispam_by_cleantalk_comcheck', 'antispam_by_cleantalk_sfw', 'antispam_by_cleantalk_footerlink','antispam_by_cleantalk_accesskey')");
 	$db->delete_query("settinggroups", "name='antispam_by_cleantalk'");
 	$db->delete_query("templates", "title = 'antispam_by_cleantalk_error_page'");
 	$db->drop_table("cleantalk_sfw");
