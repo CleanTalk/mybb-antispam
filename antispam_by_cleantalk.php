@@ -17,7 +17,7 @@
 if (!defined('IN_MYBB')){
 	die('This file cannot be accessed directly.');
 }
-const ENGINE = 'mybb-12';
+const ENGINE = 'mybb-13';
 $plugins->add_hook('newthread_do_newthread_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('newreply_do_newreply_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('editpost_do_editpost_start', 'antispam_by_cleantalk_trigger');
@@ -68,7 +68,7 @@ function antispam_by_cleantalk_info()
 		"website" => "https://cleantalk.org/",
 		"author" => "CleanTalk",
 		"authorsite" => "https://cleantalk.org/",
-		"version" => "v1.2",
+		"version" => "v1.3",
 		"guid" => "",
 		"compatibility" => "18*"
 	);
@@ -251,6 +251,56 @@ function antispam_by_cleantalk_set_global()
 
 	antispam_by_cleantalk_sfw_check();
 
+	if (isset($_GET['spbc_remote_call_token'], $_GET['spbc_remote_call_action'], $_GET['plugin_name']) && in_array($_GET['plugin_name'], array('antispam', 'anti-spam', 'apbct')))
+		antispam_by_cleantalk_perfom_remote_calls();
+}
+function antispam_by_cleantalk_perfom_remote_calls()
+{
+	global $mybb;
+
+	$remote_action = $_GET['spbc_remote_call_action'];
+
+	$remote_calls_config = array('close_renew_banner' => 0,'sfw_update' => 0,'sfw_send_logs' => 0);
+
+	if ($remote_calls_config && is_array($remote_calls_config))
+	{
+		if (array_key_exists($remote_action, $remote_calls_config))
+		{
+			if (strtolower($_GET['spbc_remote_call_token']) == strtolower(md5(trim($mybb->settings['antispam_by_cleantalk_accesskey']))))
+			{
+				// Close renew banner
+				if ($remote_action == 'close_renew_banner')
+				{
+					die('OK');
+					// SFW update
+				}
+				elseif ($remote_action == 'sfw_update')
+				{
+					$sfw = new CleantalkSFW();
+					$result = $sfw->sfw_update(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
+					die(empty($result['error']) ? 'OK' : 'FAIL ' . json_encode(array('error' => $result['error_string'])));
+					// SFW send logs
+				}
+				elseif ($remote_action == 'sfw_send_logs')
+				{
+					$sfw = new CleantalkSFW();
+					$result = $sfw->send_logs(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
+					die(empty($result['error']) ? 'OK' : 'FAIL ' . json_encode(array('error' => $result['error_string'])));
+					// Update plugin
+				}
+				elseif ($remote_action == 'update_plugin')
+				{
+					//add_action('wp', 'apbct_update', 1);
+				}
+				else
+					die('FAIL ' . json_encode(array('error' => 'UNKNOWN_ACTION_2')));
+			}
+			else
+				die('FAIL ' . json_encode(array('error' => 'WRONG_TOKEN')));
+		}
+		else
+			die('FAIL ' . json_encode(array('error' => 'UNKNOWN_ACTION')));
+	}	
 }
 function antispam_by_cleantalK_add_js()
 {
