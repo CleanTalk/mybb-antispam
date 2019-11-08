@@ -23,7 +23,7 @@ $plugins->add_hook('newreply_do_newreply_start', 'antispam_by_cleantalk_trigger'
 $plugins->add_hook('editpost_do_editpost_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('member_do_register_start', 'antispam_by_cleantalk_regtrigger');
 $plugins->add_hook('contact_do_start', 'antispam_by_cleantalk_contacttrigger');
-$plugins->add_hook('post_output_page', 'antispam_by_cleantalK_add_js');
+$plugins->add_hook('pre_output_page', 'antispam_by_cleantalK_add_js');
 $plugins->add_hook('global_start', 'antispam_by_cleantalk_set_global');
 $plugins->add_hook('admin_config_settings_change_commit', 'savesettings_trigger');
 
@@ -302,15 +302,17 @@ function antispam_by_cleantalk_perfom_remote_calls()
 			die('FAIL ' . json_encode(array('error' => 'UNKNOWN_ACTION')));
 	}	
 }
-function antispam_by_cleantalK_add_js()
+function antispam_by_cleantalK_add_js( $contents )
 {
 	global $mybb;
 
 	if (trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '')
 	{
 		$ct_checkjs_val = md5(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
-		echo '<script><!--
-		var ct_checkjs_val = \''.$ct_checkjs_val.'\', d = new Date(), 
+
+        $cleantalk_js_code =
+            '<script><!--
+		    var ct_checkjs_val = \''.$ct_checkjs_val.'\', d = new Date(), 
 				ctTimeMs = new Date().getTime(),
 				ctMouseEventTimerFlag = true, //Reading interval flag
 				ctMouseData = "[",
@@ -390,8 +392,13 @@ function antispam_by_cleantalK_add_js()
 				window.attachEvent("keydown", ctFunctionFirstKey);
 			}
 			// -->
-			</script>';		
+			</script>';
+
+        $contents = str_replace("</body>", $cleantalk_js_code . "</body>", $contents);
+
 	}
+
+    return $contents;
 
 }
 function antispam_by_cleantalk_setcookies(){
