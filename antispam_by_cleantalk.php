@@ -175,7 +175,7 @@ function antispam_by_cleantalk_install()
 	  `network` int(10) unsigned NOT NULL,
 	  `mask` int(10) unsigned NOT NULL,
 	  PRIMARY KEY (`network`)
-	) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+	) DEFAULT CHARSET=latin1;
 	");
 
 	$db->query("CREATE TABLE IF NOT EXISTS ".TABLE_PREFIX."cleantalk_sfw_logs (
@@ -184,7 +184,7 @@ function antispam_by_cleantalk_install()
 	  `blocked_entries` int(11) NOT NULL,
 	  `entries_timestamp` int(11) NOT NULL,	  	  
 	  PRIMARY KEY (`ip`)
-	) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+	) DEFAULT CHARSET=latin1;
 	");	
 }
 
