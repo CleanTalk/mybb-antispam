@@ -123,12 +123,30 @@ function antispam_by_cleantalk_install()
 		'gid'			=> $gid
 	);
 	$antispam_by_cleantalk_settings[] = Array(
+		'name'			=> "antispam_by_cleantalk_exclusions_url",
+		'title'			=> "URL exclusions",
+		'description'	=> "You could type here URL you want to exclude. Use comma as separator.",
+		'optionscode'	=> "text",
+		'value'			=> "",
+		'disporder'		=> 4,
+		'gid'			=> $gid
+	);
+    $antispam_by_cleantalk_settings[] = Array(
+        'name'			=> "antispam_by_cleantalk_exclusions_groups",
+        'title'			=> "User\'s groups exclusions",
+        'description'	=> "Roles which bypass spam test. Hold CTRL to select multiple roles.",
+        'optionscode'	=> "groupselect",
+        'value'			=> "",
+        'disporder'		=> 5,
+        'gid'			=> $gid
+    );
+	$antispam_by_cleantalk_settings[] = Array(
 		'name'			=> "antispam_by_cleantalk_sfw",
 		'title'			=> "Enable SFW",
 		'description'	=> "This option allows to filter spam bots before they access website. Also reduces CPU usage on hosting server and accelerates pages load time",
 		'optionscode'	=> "yesno",
 		'value'			=> "1",
-		'disporder'		=> 4,
+		'disporder'		=> 6,
 		'gid'			=> $gid
 	);	
 
@@ -138,7 +156,7 @@ function antispam_by_cleantalk_install()
         'description'   => "Enabling this option places a small link in the footer of your site that lets others know what anti-spam tool protects your site.",
         'optionscode'   => "yesno",
         'value'         => "0",
-        'disporder'     => 5,
+        'disporder'     => 7,
         'gid'           => $gid
     );
 
@@ -148,7 +166,7 @@ function antispam_by_cleantalk_install()
 		'description'	=> "To get an access key, please register <a target=_blank href=https://cleantalk.org/register>here</a>",
 		'optionscode'	=> "text",
 		'value'			=> "",
-		'disporder'		=> 6,
+		'disporder'		=> 8,
 		'gid'			=> $gid
 	);
 	
@@ -450,7 +468,13 @@ function antispam_by_cleantalk_testcokkies(){
 function antispam_by_cleantalk_trigger(){
 	global $mybb;
 
-	if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
+	if (
+	    $mybb->settings['antispam_by_cleantalk_enabled'] === '0' ||
+        $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' ||
+        trim($mybb->settings['antispam_by_cleantalk_accesskey']) === '' ||
+        antispam_by_cleantalk_check_exclusions_url() ||
+        antispam_by_cleantalk_check_exclusions_roles()
+    ){
 		return false;
 	}
 	if ($mybb->user['postnum'] <= '3' && !$mybb->get_input("savedraft"))
@@ -470,7 +494,13 @@ function antispam_by_cleantalk_trigger(){
 }
 function antispam_by_cleantalk_regtrigger(){
 	global $mybb;
-	if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_regcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
+	if (
+	    $mybb->settings['antispam_by_cleantalk_enabled'] === '0' ||
+        $mybb->settings['antispam_by_cleantalk_regcheck'] === '0' ||
+        trim($mybb->settings['antispam_by_cleantalk_accesskey']) === '' ||
+        antispam_by_cleantalk_check_exclusions_url() ||
+        antispam_by_cleantalk_check_exclusions_roles()
+    ){
 		return false;
 	}
         $ct_result = antispam_by_cleantalk_spam_check(
@@ -488,7 +518,13 @@ function antispam_by_cleantalk_contacttrigger()
 {
     global $mybb;
 
-    if ($mybb->settings['antispam_by_cleantalk_enabled'] === '0' || $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' || trim($mybb->settings['antispam_by_cleantalk_accesskey']) === ''){
+    if (
+        $mybb->settings['antispam_by_cleantalk_enabled'] === '0' ||
+        $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' ||
+        trim($mybb->settings['antispam_by_cleantalk_accesskey']) === '' ||
+        antispam_by_cleantalk_check_exclusions_url() ||
+        antispam_by_cleantalk_check_exclusions_roles()
+    ){
         return false;
     }
         $ct_result = antispam_by_cleantalk_spam_check(
@@ -508,6 +544,65 @@ function antispam_by_cleantalk_js_test()
 
 	return (isset($_COOKIE['ct_checkjs']) &&  md5(trim($mybb->settings['antispam_by_cleantalk_accesskey'])) == $_COOKIE['ct_checkjs']) ? 1 : 0;
 }
+
+/**
+ * Get options data for sender_info
+ *
+ * @return array
+ */
+function antispam_by_cleantalk_get_options()
+{
+    global $mybb;
+    return array(
+        'antispam_by_cleantalk_exclusions_groups' => $mybb->settings['antispam_by_cleantalk_exclusions_groups'],
+        'antispam_by_cleantalk_exclusions_url'    => $mybb->settings['antispam_by_cleantalk_exclusions_url'],
+        'antispam_by_cleantalk_comcheck'          => $mybb->settings['antispam_by_cleantalk_comcheck'],
+        'antispam_by_cleantalk_enabled'           => $mybb->settings['antispam_by_cleantalk_enabled'],
+        'antispam_by_cleantalk_regcheck'          => $mybb->settings['antispam_by_cleantalk_regcheck'],
+        'antispam_by_cleantalk_sfw'               => $mybb->settings['antispam_by_cleantalk_sfw'],
+        'antispam_by_cleantalk_footerlink'        => $mybb->settings['antispam_by_cleantalk_footerlink'],
+        'antispam_by_cleantalk_accesskey'         => trim($mybb->settings['antispam_by_cleantalk_accesskey']),
+    );
+}
+
+/**
+ * Check exclusions - URL
+ * @return bool
+ */
+function antispam_by_cleantalk_check_exclusions_url()
+{
+    global $mybb;
+    if ( ! empty( $mybb->settings['antispam_by_cleantalk_exclusions_url'] ) ) {
+        $exclusions = explode( ',', $mybb->settings['antispam_by_cleantalk_exclusions_url'] );
+        $haystack = Server::get('REQUEST_URI');
+        foreach ( $exclusions as $exclusion ) {
+            if ( stripos( $haystack, $exclusion ) !== false ){
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Check exclusions - User roles
+ * @return bool
+ */
+function antispam_by_cleantalk_check_exclusions_roles()
+{
+    global $mybb;
+    if ( ! empty( $mybb->settings['antispam_by_cleantalk_exclusions_groups'] ) ) {
+        $exclusions = explode( ',', $mybb->settings['antispam_by_cleantalk_exclusions_groups'] );
+        $haystack = explode( ',', $mybb->usergroup['all_usergroups'] );
+        foreach ( $exclusions as $exclusion ) {
+            if ( in_array( $exclusion, $haystack ) ){
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 function antispam_by_cleantalk_spam_check($method, $params)
 {
     global $mybb;
