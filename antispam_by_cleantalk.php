@@ -17,7 +17,12 @@
 if (!defined('IN_MYBB')){
 	die('This file cannot be accessed directly.');
 }
-const ENGINE = 'mybb-13';
+
+// CleanTalk version and agent
+define( 'CLEANTALK_ANTISPAM_VERSION', '1.3' );
+define( 'ENGINE', 'mybb-' . str_replace( '.', '', CLEANTALK_ANTISPAM_VERSION ) );
+
+// The plugin's hooks
 $plugins->add_hook('newthread_do_newthread_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('newreply_do_newreply_start', 'antispam_by_cleantalk_trigger');
 $plugins->add_hook('editpost_do_editpost_start', 'antispam_by_cleantalk_trigger');
@@ -68,7 +73,7 @@ function antispam_by_cleantalk_info()
 		"website" => "https://cleantalk.org/",
 		"author" => "CleanTalk",
 		"authorsite" => "https://cleantalk.org/",
-		"version" => "v1.3",
+		"version" => "v" . CLEANTALK_ANTISPAM_VERSION,
 		"guid" => "",
 		"compatibility" => "18*"
 	);
