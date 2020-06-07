@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/ct_phpFix.php';
 
 spl_autoload_register( 'ct_autoloader' );
 
