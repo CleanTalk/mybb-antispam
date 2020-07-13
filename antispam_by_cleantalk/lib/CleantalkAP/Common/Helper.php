@@ -191,7 +191,7 @@ class Helper{
 		return count($result) > 1
 			? $result
 			: (reset($result) !== false
-				? reset($result)
+				? $result
 				: null);
 	}
 	
