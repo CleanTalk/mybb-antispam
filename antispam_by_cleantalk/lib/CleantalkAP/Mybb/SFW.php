@@ -9,6 +9,10 @@ use CleantalkAP\Variables\Server;
 
 class SFW
 {
+    /*
+     * Select limit for logs.
+     */
+    const APBCT_WRITE_LIMIT = 5000;
 
     public $ip = 0;
     public $ip_str = '';
@@ -16,7 +20,7 @@ class SFW
     public $ip_str_array = Array();
     public $blocked_ip = '';
     public $passed_ip = '';
-    public $result = false;
+    public $pass = true;
     public $test = false;
 
     /**
@@ -47,6 +51,7 @@ class SFW
 
     //Database variables
     private $table_prefix;
+    private $data_table;
     private $db;
     private $query;
     private $db_result;
@@ -60,6 +65,7 @@ class SFW
     {
         global $db;
         $this->table_prefix = TABLE_PREFIX;
+        $this->data_table = $this->table_prefix . 'cleantalk_sfw';
         $this->db = $db;
         $this->debug = Get::get('debug') === '1' ? true : false;
     }
@@ -112,26 +118,50 @@ class SFW
 
         foreach($this->ip_array as $origin => $current_ip){
 
-            $query = "SELECT 
-				COUNT(network) AS cnt, network, mask
-				FROM ".$this->table_prefix."cleantalk_sfw
-				WHERE network = ".sprintf("%u", ip2long($current_ip))." & mask";
+            $current_ip_v4 = sprintf("%u", ip2long($current_ip));
+            for ( $needles = array(), $m = 6; $m <= 32; $m ++ ) {
+                $mask      = sprintf( "%u", ip2long( long2ip( - 1 << ( 32 - (int) $m ) ) ) );
+                $needles[] = bindec( decbin( $mask ) & decbin( $current_ip_v4 ) );
+            }
+            $needles = array_unique( $needles );
+
+            $query = "SELECT
+				network, mask, status
+				FROM " . $this->data_table . "
+				WHERE network IN (". implode( ',', $needles ) .") 
+				AND	network = " . $current_ip_v4 . " & mask
+				ORDER BY status DESC LIMIT 1;";
+
             $this->unversal_query($query,true);
             $this->unversal_fetch();
 
-            if($this->db_result_data['cnt']){
-                $this->pass = false;
-                $this->blocked_ips[$origin] = array(
-                    'ip'      => $current_ip,
-                    'network' => long2ip($this->db->result_data['network']),
-                    'mask'    => Helper::ip__mask__long_to_number($this->db->result_data['mask']),
-                );
-                $this->all_ips[$origin] = array(
-                    'ip'      => $current_ip,
-                    'network' => long2ip($this->db->result_data['network']),
-                    'mask'    => Helper::ip__mask__long_to_number($this->db->result_data['mask']),
-                    'status'  => -1,
-                );
+            if( ! empty( $this->db_result_data ) ){
+
+                if ( 1 == $this->db_result_data['status'] ) {
+                    // It is the White Listed network - will be passed.
+                    $this->passed_ips[$origin] = array(
+                        'ip'     => $current_ip,
+                    );
+                    $this->all_ips[$origin] = array(
+                        'ip'     => $current_ip,
+                        'status' => 1,
+                    );
+                    break;
+                } else {
+                    $this->pass = false;
+                    $this->blocked_ips[$origin] = array(
+                        'ip'      => $current_ip,
+                        'network' => long2ip($this->db_result_data['network']),
+                        'mask'    => Helper::ip__mask__long_to_number($this->db_result_data['mask']),
+                    );
+                    $this->all_ips[$origin] = array(
+                        'ip'      => $current_ip,
+                        'network' => long2ip($this->db_result_data['network']),
+                        'mask'    => Helper::ip__mask__long_to_number($this->db_result_data['mask']),
+                        'status'  => -1,
+                    );
+                }
+
             }else{
                 $this->passed_ips[$origin] = array(
                     'ip'     => $current_ip,
@@ -176,34 +206,122 @@ class SFW
     *
     * return mixed true || array('error' => true, 'error_string' => STRING)
     */
-    public function sfw_update($ct_key){
+    public function sfw_update($ct_key, $file_url = null, $immediate = false){
 
-        $result = API::method__get_2s_blacklists_db($ct_key);
+        global $mybb;
 
-        if(empty($result['error'])){
+        // Getting remote file name
+        if(!$file_url){
 
-            $this->unversal_query("TRUNCATE TABLE ".$this->table_prefix."cleantalk_sfw",true);
+            sleep(6);
 
-            // Cast result to int
-            foreach($result as $value){
-                $value[0] = intval($value[0]);
-                $value[1] = intval($value[1]);
-            } unset($value);
+            $result = API::method__get_2s_blacklists_db($ct_key, 'multifiles', '2_0');
 
-            $query="INSERT INTO ".$this->table_prefix."cleantalk_sfw VALUES ";
-            for($i=0, $arr_count = count($result); $i < $arr_count; $i++){
-                if($i == count($result)-1){
-                    $query.="(".$result[$i][0].",".$result[$i][1].")";
-                }else{
-                    $query.="(".$result[$i][0].",".$result[$i][1]."), ";
-                }
-            }
-            $this->unversal_query($query,true);
+            if(empty($result['error'])){
 
-            return true;
+                if( !empty($result['file_url']) ){
 
+                    if(Helper::http__request($result['file_url'], array(), 'get_code') === 200) {
+
+                        if(ini_get('allow_url_fopen')) {
+
+                            $pattenrs = array();
+                            $pattenrs[] = 'get';
+
+                            if(!$immediate) $pattenrs[] = 'async';
+
+                            // Clear SFW table
+                            $this->unversal_query("TRUNCATE TABLE {$this->data_table};");
+                            $this->unversal_query("SELECT COUNT(network) as cnt FROM {$this->data_table};", true); // Check if it is clear
+                            $this->unversal_fetch();
+                            if($this->db_result_data['cnt'] != 0){
+                                $this->unversal_query("DELETE FROM {$this->data_table};"); // Truncate table
+                                $this->unversal_query("SELECT COUNT(network) as cnt FROM {$this->data_table};", true); // Check if it is clear
+                                $this->unversal_fetch();
+                                if($this->db_result_data['cnt'] != 0){
+                                    return array('error' => 'COULD_NOT_CLEAR_SFW_TABLE'); // throw an error
+                                }
+                            }
+
+                            $gf = \gzopen($result['file_url'], 'rb');
+
+                            if ($gf) {
+
+                                $file_urls = array();
+
+                                while( ! \gzeof($gf) )
+                                    $file_urls[] = trim( \gzgets($gf, 1024) );
+
+                                \gzclose($gf);
+
+                                return Helper::http__request(
+                                    $mybb->settings['bburl'],
+                                    array(
+                                        'spbc_remote_call_token'  => md5($ct_key),
+                                        'spbc_remote_call_action' => 'sfw_update',
+                                        'plugin_name'             => 'apbct',
+                                        'file_urls'               => implode(',', $file_urls),
+                                    ),
+                                    $pattenrs
+                                );
+                            }else
+                                return array('error' => 'COULD_NOT_OPEN_REMOTE_FILE_SFW');
+                        }else
+                            return array('error' => 'ERROR_ALLOW_URL_FOPEN_DISABLED');
+                    }else
+                        return array('error' => 'NO_FILE_URL_PROVIDED');
+                }else
+                    return array('error' => 'BAD_RESPONSE');
+            }else
+                return $result;
         }else{
-            return $result;
+
+            if(Helper::http__request($file_url, array(), 'get_code') === 200){ // Check if it's there
+
+                $gf = \gzopen($file_url, 'rb');
+
+                if($gf){
+
+                    if( ! \gzeof($gf) ){
+
+                        for( $count_result = 0; ! \gzeof($gf); ){
+
+                            $query = "INSERT INTO ".$this->data_table." VALUES %s";
+
+                            for($i=0, $values = array(); self::APBCT_WRITE_LIMIT !== $i && ! \gzeof($gf); $i++, $count_result++){
+
+                                $entry = trim( \gzgets($gf, 1024) );
+
+                                if(empty($entry)) continue;
+
+                                $entry = explode(',', $entry);
+
+                                // Cast result to int
+                                $ip   = preg_replace('/[^\d]*/', '', $entry[0]);
+                                $mask = preg_replace('/[^\d]*/', '', $entry[1]);
+                                $private = isset($entry[2]) ? $entry[2] : 0;
+
+                                if(!$ip || !$mask) continue;
+
+                                $values[] = '('. $ip .','. $mask .','. $private .')';
+
+                            }
+
+                            if(!empty($values)){
+                                $query = sprintf($query, implode(',', $values).';');
+                                $this->unversal_query( $query, true );
+                            }
+
+                        }
+                        \gzclose($gf);
+                        return $count_result;
+
+                    }else
+                        return array('error' => 'ERROR_GZ_EMPTY');
+                }else
+                    return array('error' => 'ERROR_OPEN_GZ_FILE');
+            }else
+                return array('error' => 'NO_REMOTE_FILE_FOUND');
         }
     }
 

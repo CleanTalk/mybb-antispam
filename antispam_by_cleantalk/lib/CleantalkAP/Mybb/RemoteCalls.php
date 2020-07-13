@@ -46,8 +46,7 @@ class RemoteCalls extends \CleantalkAP\Common\RemoteCalls
 
         global $mybb;
 
-        $sfw = new SFW();
-        $result = $sfw->sfw_update( trim( $mybb->settings['antispam_by_cleantalk_accesskey'] ) );
+        $result = antispam_by_cleantalk_sfw_update( trim( $mybb->settings['antispam_by_cleantalk_accesskey'] ), true );
         die( empty( $result['error'] ) ? 'OK' : 'FAIL ' . json_encode( array( 'error' => $result['error_string'] ) ) );
 
 	}
@@ -56,8 +55,7 @@ class RemoteCalls extends \CleantalkAP\Common\RemoteCalls
 
         global $mybb;
 
-        $sfw = new SFW();
-        $result = $sfw->send_logs( trim( $mybb->settings['antispam_by_cleantalk_accesskey'] ) );
+        $result = antispam_by_cleantalk_sfw_send_logs( trim( $mybb->settings['antispam_by_cleantalk_accesskey'] ) );
         die( empty( $result['error'] ) ? 'OK' : 'FAIL ' . json_encode( array( 'error' => $result['error_string'] ) ) );
 
     }
