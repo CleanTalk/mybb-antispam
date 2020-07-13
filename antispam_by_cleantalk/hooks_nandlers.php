@@ -1,7 +1,9 @@
 <?php
 
 use CleantalkAP\Common\API;
+use CleantalkAP\Mybb\Cron;
 use CleantalkAP\Mybb\RemoteCalls;
+use CleantalkAP\Variables\Server;
 
 /**
  * Hooked at 'admin_config_settings_change_commit'
@@ -28,12 +30,16 @@ function savesettings_trigger()
                 if( ! empty( $result['error'] ) ) {
                     //@todo We have to implement errors handling
                     //error_log( 'CleanTalk sfw_update error: ' . $result['error'] );
+                } else {
+                    Cron::updateTask( 'sfw_update', 'antispam_by_cleantalk_sfw_update', 86400, time() + 86400 );
                 }
 
-                $result = antispam_by_cleantalk_sfw_send_logs( $access_key );;
+                $result = antispam_by_cleantalk_sfw_send_logs( $access_key );
                 if( ! empty( $result['error'] ) ) {
                     //@todo We have to implement errors handling
                     //error_log( 'CleanTalk sfw_send_logs error: ' . $result['error'] );
+                } else {
+                    Cron::updateTask( 'send_sfw_logs', 'antispam_by_cleantalk_sfw_send_logs', 3600, time() + 3600 );
                 }
 
 
@@ -60,10 +66,12 @@ function antispam_by_cleantalk_set_global()
     // Set cookies
     antispam_by_cleantalk_setcookies();
 
+    $access_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
+
     // SpamFireWall checking
-    if ( $mybb->settings['antispam_by_cleantalk_sfw'] === '1' ) {
+    if ( $access_key != '' && $mybb->settings['antispam_by_cleantalk_sfw'] === '1' ) {
         // Run SFW except the remote calls and excluded URLs
-        if( ! RemoteCalls::check() || ! antispam_by_cleantalk_check_exclusions_url() ) {
+        if( Server::get('REQUEST_METHOD') == 'GET' && ( ! RemoteCalls::check() || ! antispam_by_cleantalk_check_exclusions_url() ) ) {
             antispam_by_cleantalk_sfw_check();
         }
     }
@@ -71,6 +79,24 @@ function antispam_by_cleantalk_set_global()
     // Checking remote calls
     if ( RemoteCalls::check() ) {
         RemoteCalls::perform();
+    }
+
+    // Self cron
+    if( ! defined('CT_CRON') || ( defined('CT_CRON' ) && CT_CRON !== true ) ){
+
+        $ct_cron = new \CleantalkAP\Mybb\Cron();
+        $ct_cron->checkTasks();
+
+        if( ! empty( $ct_cron->tasks_to_run ) ){
+
+            define('CT_CRON', true); // Letting know functions that they are running under CT_CRON
+            $result = $ct_cron->runTasks();
+            if( ! $result ) {
+                //@todo We have to implement errors handling
+            }
+            unset($ct_cron);
+
+        }
     }
 }
 

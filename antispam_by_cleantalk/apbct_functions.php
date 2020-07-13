@@ -10,6 +10,8 @@ function antispam_by_cleantalk_sfw_update($api_key = '', $immediate = false )
 {
     global $mybb;
 
+    $api_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '' ? trim($mybb->settings['antispam_by_cleantalk_accesskey']) : $api_key;
+
     if( ! empty( $api_key ) ) {
 
         $sfw = new SFW();
@@ -58,6 +60,10 @@ function antispam_by_cleantalk_sfw_update($api_key = '', $immediate = false )
 
 function antispam_by_cleantalk_sfw_send_logs( $api_key = '' )
 {
+    global $mybb;
+
+    $api_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '' ? trim($mybb->settings['antispam_by_cleantalk_accesskey']) : $api_key;
+
     if( ! empty( $api_key ) ) {
 
         $sfw = new SFW();

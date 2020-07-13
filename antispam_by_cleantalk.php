@@ -178,14 +178,31 @@ function antispam_by_cleantalk_install()
 		`blocked_entries` INT NOT NULL,
 		`entries_timestamp` INT NOT NULL,
 		PRIMARY KEY (`ip`));
-	");	
+	");
+
+    // This is the hidden setting to contain cron jobs.
+    $antispam_by_cleantalk_cron = array(
+        'name'			=> \CleantalkAP\Mybb\Cron::CRON_OPTION_NAME,
+        'title'			=> "",
+        'description'	=> "",
+        'optionscode'	=> "text",
+        'value'			=> "",
+        'disporder'		=> 0,
+        'gid'			=> 0
+    );
+    $db->insert_query("settings", $antispam_by_cleantalk_cron);
+    rebuild_settings();
+
+    \CleantalkAP\Mybb\Cron::addTask('sfw_update',    'antispam_by_cleantalk_sfw_update',    86400, time()+300);  // SFW update
+    \CleantalkAP\Mybb\Cron::addTask('send_sfw_logs', 'antispam_by_cleantalk_sfw_send_logs', 3600,  time()+1800); // SFW send logs
+
 }
 
 function antispam_by_cleantalk_uninstall()
 {
 	global $db;
 
-	$db->delete_query("settings", "name IN ('antispam_by_cleantalk_enabled','antispam_by_cleantalk_regcheck','antispam_by_cleantalk_comcheck', 'antispam_by_cleantalk_sfw', 'antispam_by_cleantalk_footerlink','antispam_by_cleantalk_accesskey')");
+	$db->delete_query("settings", "name IN ('antispam_by_cleantalk_enabled','antispam_by_cleantalk_regcheck','antispam_by_cleantalk_comcheck', 'antispam_by_cleantalk_sfw', 'antispam_by_cleantalk_footerlink','antispam_by_cleantalk_accesskey','antispam_by_cleantalk_exclusions_url','antispam_by_cleantalk_exclusions_groups','antispam_by_cleantalk_cron')");
 	$db->delete_query("settinggroups", "name='antispam_by_cleantalk'");
 	$db->delete_query("templates", "title = 'antispam_by_cleantalk_error_page'");
 	$db->drop_table("cleantalk_sfw");
