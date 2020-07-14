@@ -33,19 +33,20 @@ class API{
 	 *
 	 * @return mixed|string|array('error' => STRING)
 	 */
-	static public function method__get_2s_blacklists_db($api_key, $out = null, $do_check = true)
-	{
-		$request = array(
-			'method_name' => '2s_blacklists_db',
-			'auth_key'    => $api_key,
-			'out'         => $out,
-		);
-		
-		$result = static::send_request($request);
-		$result = $do_check ? static::check_response($result, '2s_blacklists_db') : $result;
-		
-		return $result;
-	}
+    static public function method__get_2s_blacklists_db($api_key, $out = null, $version = '1_0', $do_check = true)
+    {
+        $request = array(
+            'method_name' => '2s_blacklists_db',
+            'auth_key'    => $api_key,
+            'out'         => $out,
+            'version'	  => $version,
+        );
+
+        $result = static::send_request($request);
+        $result = $do_check ? static::check_response($result, '2s_blacklists_db') : $result;
+
+        return $result;
+    }
 	
 	/**
 	 * Wrapper for get_api_key API method.
