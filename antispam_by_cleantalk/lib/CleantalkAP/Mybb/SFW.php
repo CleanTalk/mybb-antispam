@@ -97,7 +97,7 @@ class SFW
     */
     public function ip_get($ips_input = array('real', 'remote_addr', 'x_forwarded_for', 'x_real_ip', 'cloud_flare'), $v4_only = true){
 
-        $result = (array)Helper::ip__get($ips_input, $v4_only);
+        $result = Helper::ip__get($ips_input, $v4_only);
 
         $result = !empty($result) ? array('real' => $result) : array();
 
