@@ -99,7 +99,7 @@ class SFW
 
         $result = (array)Helper::ip__get($ips_input, $v4_only);
 
-        $result = !empty($result) ? $result : array();
+        $result = !empty($result) ? array('real' => $result) : array();
 
         if( Get::get('sfw_test_ip') ){
             if( Helper::ip__validate(Get::get('sfw_test_ip')) !== false ) {
