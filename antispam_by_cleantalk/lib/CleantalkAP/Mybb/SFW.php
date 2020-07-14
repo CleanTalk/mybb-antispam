@@ -231,11 +231,11 @@ class SFW
                             if(!$immediate) $pattenrs[] = 'async';
 
                             // Clear SFW table
-                            $this->unversal_query("TRUNCATE TABLE {$this->data_table};");
+                            $this->unversal_query("TRUNCATE TABLE {$this->data_table};", true);
                             $this->unversal_query("SELECT COUNT(network) as cnt FROM {$this->data_table};", true); // Check if it is clear
                             $this->unversal_fetch();
                             if($this->db_result_data['cnt'] != 0){
-                                $this->unversal_query("DELETE FROM {$this->data_table};"); // Truncate table
+                                $this->unversal_query("DELETE FROM {$this->data_table};" , true); // Truncate table
                                 $this->unversal_query("SELECT COUNT(network) as cnt FROM {$this->data_table};", true); // Check if it is clear
                                 $this->unversal_fetch();
                                 if($this->db_result_data['cnt'] != 0){
