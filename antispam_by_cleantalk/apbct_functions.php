@@ -21,7 +21,7 @@ function antispam_by_cleantalk_sfw_update($api_key = '', $immediate = false )
 
         if( ! $file_urls ){
 
-            $sfw->sfw_update( $api_key, null, $immediate );
+            $result = $sfw->sfw_update( $api_key, null, $immediate );
 
             return ! empty( $result['error'] )
                 ? $result
