@@ -218,7 +218,8 @@ function antispam_by_cleantalk_trigger()
         $mybb->settings['antispam_by_cleantalk_comcheck'] === '0' ||
         trim($mybb->settings['antispam_by_cleantalk_accesskey']) === '' ||
         antispam_by_cleantalk_check_exclusions_url() ||
-        antispam_by_cleantalk_check_exclusions_roles()
+        antispam_by_cleantalk_check_exclusions_roles() ||
+        ( isset($mybb->user['ismoderator']) && $mybb->user['ismoderator'] == 1 )
     ){
         return false;
     }
