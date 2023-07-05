@@ -438,7 +438,7 @@ class SFW
                     .'<h1>Passed IPs</h1>'
                     . var_export($this->blocked_ips, true)
                     . '<h1>Headers</h1>'
-                    . var_export(apache_request_headers(), true)
+                    . var_export(\apache_request_headers(), true)
                     . '<h1>REMOTE_ADDR</h1>'
                     . var_export(Server::get( 'REMOTE_ADDR' ), true)
                     . '<h1>SERVER_ADDR</h1>'

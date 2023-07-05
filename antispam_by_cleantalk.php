@@ -19,7 +19,7 @@ if (!defined('IN_MYBB')){
 }
 
 // CleanTalk version and agent
-define( 'CLEANTALK_ANTISPAM_VERSION', '1.4' );
+define( 'CLEANTALK_ANTISPAM_VERSION', '1.5' );
 define( 'ENGINE', 'mybb-' . str_replace( '.', '', CLEANTALK_ANTISPAM_VERSION ) );
 
 require_once MYBB_ROOT . 'inc/plugins/antispam_by_cleantalk/autoloader.php';
