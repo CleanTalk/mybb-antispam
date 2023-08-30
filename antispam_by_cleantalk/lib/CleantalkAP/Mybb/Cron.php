@@ -32,7 +32,7 @@ class Cron
     {
         global $db;
 
-        $query = $db->simple_select('settings', 'value', "name=" . self::CRON_OPTION_NAME);
+        $query = $db->simple_select('settings', 'value', "name='" . self::CRON_OPTION_NAME . "'");
         $tasks = $db->fetch_field($query, 'value');
         return empty($tasks) ? array() : json_decode( $tasks, true );
     }
