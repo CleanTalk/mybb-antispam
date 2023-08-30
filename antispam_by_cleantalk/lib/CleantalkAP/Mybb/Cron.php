@@ -25,9 +25,16 @@ class Cron
     // Getting tasks option
     public function __construct()
     {
-        global $mybb;
-        $tasks = $mybb->settings[self::CRON_OPTION_NAME];
-        $this->tasks = empty($tasks) ? array() : json_decode( $tasks, true );
+        $this->tasks = $this->getTasks();
+    }
+
+    public function getTasks()
+    {
+        global $db;
+
+        $query = $db->simple_select('settings', 'value', "name=" . self::CRON_OPTION_NAME);
+        $tasks = $db->fetch_field($query, 'value');
+        return empty($tasks) ? array() : json_decode( $tasks, true );
     }
 
     static public function updateDatabase( $tasks )
@@ -37,8 +44,6 @@ class Cron
             'value'	=> json_encode( $tasks )
         );
         $db->update_query("settings", $antispam_by_cleantalk_cron, "name='" . self::CRON_OPTION_NAME . "'" );
-        rebuild_settings();
-
     }
 
     // Adding new cron task
@@ -151,8 +156,26 @@ class Cron
     }
 
     // Save option with tasks
-    private function saveTasks()
+    public function saveTasks()
     {
         self::updateDatabase( $this->tasks );
+    }
+
+    public function getDefaultTasks()
+    {
+        return [
+            'sfw_update' =>
+                array (
+                    'handler' => 'antispam_by_cleantalk_sfw_update',
+                    'next_call' => time() + 60,
+                    'period' => 86400,
+                ),
+            'send_sfw_logs' =>
+                array (
+                    'handler' => 'antispam_by_cleantalk_sfw_send_logs',
+                    'next_call' => time() + 3600,
+                    'period' => 3600,
+                ),
+        ];
     }
 }
