@@ -85,6 +85,10 @@ function antispam_by_cleantalk_set_global()
     if( ! defined('CT_CRON') || ( defined('CT_CRON' ) && CT_CRON !== true ) ){
 
         $ct_cron = new \CleantalkAP\Mybb\Cron();
+        if (empty($ct_cron->tasks)) {
+            $ct_cron->tasks = $ct_cron->getDefaultTasks();
+            $ct_cron->saveTasks();
+        }
         $ct_cron->checkTasks();
 
         if( ! empty( $ct_cron->tasks_to_run ) ){
