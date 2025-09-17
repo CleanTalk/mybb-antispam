@@ -224,7 +224,8 @@ function antispam_by_cleantalk_spam_check($method, $params)
     global $mybb;
 
     $ct = new Cleantalk();
-    $ct->server_url = 'http://moderate4.cleantalk.org';
+    $ct->server_url = 'https://moderate.cleantalk.org';
+    $ct->stay_on_server = true;
 
     $ct_request = new CleantalkRequest();
 
