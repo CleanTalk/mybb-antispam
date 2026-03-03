@@ -4,12 +4,12 @@
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
 	(at your option) any later version.
-	
+
 	This program is distributed in the hope that it will be useful,
 	but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	GNU General Public License for more details.
-	
+
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ****************************************************************************/
@@ -19,7 +19,7 @@ if (!defined('IN_MYBB')){
 }
 
 // CleanTalk version and agent
-define( 'CLEANTALK_ANTISPAM_VERSION', '1.5' );
+define( 'CLEANTALK_ANTISPAM_VERSION', '1.6' );
 define( 'ENGINE', 'mybb-' . str_replace( '.', '', CLEANTALK_ANTISPAM_VERSION ) );
 
 require_once MYBB_ROOT . 'inc/plugins/antispam_by_cleantalk/autoloader.php';
@@ -60,9 +60,9 @@ function antispam_by_cleantalk_install()
 		'disporder'		=> 1,
 		'isdefault'		=> 1
 	);
-	
+
 	$gid = $db->insert_query("settinggroups", $ap_group);
-	
+
 	$antispam_by_cleantalk_settings = Array();
 	$antispam_by_cleantalk_settings[] = Array(
 		'name'			=> "antispam_by_cleantalk_enabled",
@@ -83,7 +83,7 @@ function antispam_by_cleantalk_install()
 		'disporder'		=> 2,
 		'gid'			=> $gid
 	);
-	
+
 	$antispam_by_cleantalk_settings[] = Array(
 		'name'			=> "antispam_by_cleantalk_comcheck",
 		'title'			=> "Check posts",
@@ -119,7 +119,7 @@ function antispam_by_cleantalk_install()
 		'value'			=> "1",
 		'disporder'		=> 6,
 		'gid'			=> $gid
-	);	
+	);
 
     $antispam_by_cleantalk_settings[] = Array(
         'name'          => "antispam_by_cleantalk_footerlink",
@@ -140,7 +140,7 @@ function antispam_by_cleantalk_install()
 		'disporder'		=> 8,
 		'gid'			=> $gid
 	);
-	
+
 	foreach ($antispam_by_cleantalk_settings as $setting){
 		$db->insert_query("settings", $setting);
 	}
@@ -208,7 +208,7 @@ function antispam_by_cleantalk_uninstall()
 	$db->drop_table("cleantalk_sfw");
 	$db->drop_table("cleantalk_sfw_logs");
 	$db->delete_query("templates", "title='footer' AND sid='1'");
-	
+
 	rebuild_settings();
 }
 
