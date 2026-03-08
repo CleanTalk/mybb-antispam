@@ -6,3 +6,7 @@ MyBB anti-spam extension.
 
 1) Copy Cleantalk folder to your <mybb root directory>/inc/plugins
 2) Go to ACP->Configuration->plugins->Antispam by Cleantalk->Install and Active
+
+## Requirements
+
+* CleanTalk account https://cleantalk.org/register?product=anti-spam
