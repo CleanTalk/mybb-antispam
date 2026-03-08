@@ -1,6 +1,6 @@
 # mybb-antispam
 MyBB anti-spam extension.
-# Version 1.5
+# Version 1.6
 
 ## How to install
 
