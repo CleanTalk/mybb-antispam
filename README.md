@@ -2,6 +2,8 @@
 MyBB anti-spam extension.
 # Version 1.6
 
+https://community.mybb.com/mods.php?action=download&pid=1008
+
 ## How to install
 
 1) Copy Cleantalk folder to your <mybb root directory>/inc/plugins
