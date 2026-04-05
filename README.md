@@ -4,6 +4,8 @@ MyBB anti-spam extension.
 
 https://community.mybb.com/mods.php?action=download&pid=1008
 
+If you find this project useful, please consider starring ⭐ it on GitHub — it helps us grow and support development!
+
 ## How to install
 
 1) Copy Cleantalk folder to your <mybb root directory>/inc/plugins
@@ -16,3 +18,4 @@ https://community.mybb.com/mods.php?action=download&pid=1008
 ## Websites that trust CleanTalk!
 
 ![CleanTalk Anti-Spam Rating](https://cleantalk.org/webpack/img/cleantalk_rating.png)
+
