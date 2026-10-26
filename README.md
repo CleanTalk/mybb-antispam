@@ -1,21 +1,45 @@
-# mybb-antispam
-MyBB anti-spam extension.
-# Version 1.6
+# Antispam by CleanTalk for MyBB
 
-https://community.mybb.com/mods.php?action=download&pid=1008
+Spam protection for MyBB without CAPTCHA, image verification or security questions.
+Blocks spam registrations, spam threads and replies, and Contact Us spam. Cloud anti-spam used on 1,100,000+ websites.
 
-If you find this project useful, please consider starring ⭐ it on GitHub — it helps us grow and support development!
+> **Free months for your review.** Post a review about CleanTalk on a community platform (for example, a MyBB forum thread), then send us the link from your [CleanTalk dashboard > Bonuses](https://cleantalk.org/my/bonuses). We add free months to your annual license.
 
-## How to install
+![Settings](docs/mybb-settings.png)
 
-1) Copy Cleantalk folder to your <mybb root directory>/inc/plugins
-2) Go to ACP->Configuration->plugins->Antispam by Cleantalk->Install and Active
+## What it protects
+- Registrations
+- New threads and replies from new members
+- Post edits
+- Contact Us form
+- SpamFireWall: blocks known spam bots before they load your pages
 
 ## Requirements
+- MyBB 1.8.x (tested on 1.8.41, PHP 8.2)
+- CleanTalk access key: [cleantalk.org/register](https://cleantalk.org/register?platform=mybb&utm_source=mybb&utm_medium=github), 7-day free trial, no card
 
-* CleanTalk account https://cleantalk.org/register?product=anti-spam
+## Install
+1. Copy `antispam_by_cleantalk.php` and the `antispam_by_cleantalk` folder to `inc/plugins`
+2. ACP > Configuration > Plugins > Antispam by CleanTalk > Install & Activate
+3. ACP > Configuration > Settings > Antispam by CleanTalk: paste your access key
 
-## Websites that trust CleanTalk!
+You can now switch off MyBB image verification and security questions: CleanTalk does the job invisibly.
 
-![CleanTalk Anti-Spam Rating](https://cleantalk.org/webpack/img/cleantalk_rating.png)
+![Spam registration blocked](docs/mybb-spam-blocked.png)
 
+## Free Anti-Spam & Security Licenses for Developers
+
+We offer free Anti-Spam and Security licenses to developers who contribute to the development and maintenance of our plugins.
+
+**How to qualify for free licenses:**
+- Have at least one contribution to our plugins approved.
+- Manage plugin, module, or extension releases and maintain their listings on relevant community platforms.
+
+Interested? Contact us at [welcome@cleantalk.org](mailto:welcome@cleantalk.org) to claim your free licenses.
+
+## Links
+- [MyBB Mods page](https://community.mybb.com/mods.php?action=view&pid=1008)
+- [CleanTalk dashboard](https://cleantalk.org/my)
+- [Support](https://cleantalk.org/my/support)
+
+If this plugin helps you, please star ⭐ the repository.
