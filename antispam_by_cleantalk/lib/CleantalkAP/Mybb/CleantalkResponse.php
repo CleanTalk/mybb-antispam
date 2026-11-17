@@ -122,6 +122,9 @@ class CleantalkResponse
      */
     public $account_status = -1;
 
+    /** Additional fields returned by newer API versions. */
+    public $extra = array();
+
     /**
      * Create server response
      *
@@ -131,17 +134,21 @@ class CleantalkResponse
     function __construct($response = null, $obj = null) {
         if ($response && is_array($response) && count($response) > 0) {
             foreach ($response as $param => $value) {
-                $this->{$param} = $value;
+                if (property_exists($this, $param)) {
+                    $this->{$param} = $value;
+                } else {
+                    $this->extra[$param] = $value;
+                }
             }
         } else {
-            $this->errno = $obj->errno;
-            $this->errstr = $obj->errstr;
+            $this->errno = isset($obj->errno) ? $obj->errno : 1;
+            $this->errstr = isset($obj->errstr) ? $obj->errstr : null;
             $this->curl_err = !empty($obj->curl_err) ? $obj->curl_err : false;
 
-            $this->errstr = preg_replace("/.+(\*\*\*.+\*\*\*).+/", "$1", $this->errstr);
+            $this->errstr = $this->errstr === null ? null : preg_replace("/.+(\*\*\*.+\*\*\*).+/", "$1", (string)$this->errstr);
 
-            $this->stop_words = isset($obj->stop_words) ? utf8_decode($obj->stop_words) : null;
-            $this->comment = isset($obj->comment) ? utf8_decode($obj->comment) : null;
+            $this->stop_words = isset($obj->stop_words) ? $obj->stop_words : null;
+            $this->comment = isset($obj->comment) ? $obj->comment : null;
             $this->blacklisted = (isset($obj->blacklisted)) ? $obj->blacklisted : null;
             $this->allow = (isset($obj->allow)) ? $obj->allow : 0;
             $this->id = (isset($obj->id)) ? $obj->id : null;

@@ -19,7 +19,7 @@ if (!defined('IN_MYBB')){
 }
 
 // CleanTalk version and agent
-define( 'CLEANTALK_ANTISPAM_VERSION', '1.6' );
+define( 'CLEANTALK_ANTISPAM_VERSION', '1.7' );
 define( 'ENGINE', 'mybb-' . str_replace( '.', '', CLEANTALK_ANTISPAM_VERSION ) );
 
 require_once MYBB_ROOT . 'inc/plugins/antispam_by_cleantalk/autoloader.php';
@@ -134,7 +134,7 @@ function antispam_by_cleantalk_install()
 	$antispam_by_cleantalk_settings[] = Array(
 		'name'			=> "antispam_by_cleantalk_accesskey",
 		'title'			=> "Access key",
-		'description'	=> "To get an access key, please register <a target=_blank href=https://cleantalk.org/register>here</a>",
+		'description'	=> antispam_by_cleantalk_access_key_description(),
 		'optionscode'	=> "text",
 		'value'			=> "",
 		'disporder'		=> 8,
@@ -145,25 +145,6 @@ function antispam_by_cleantalk_install()
 		$db->insert_query("settings", $setting);
 	}
 	rebuild_settings();
-	$template = '{$lang->error_nopermission_user_1}
-<ol>
-	<li>{$lang->error_nopermission_user_2}</li>
-	<li>{$lang->error_nopermission_user_3}</li>
-	<li>{$lang->error_nopermission_user_4} (<a href="member.php?action=resendactivation">{$lang->error_nopermission_user_resendactivation}</a>)</li>
-	<li>{$lang->error_nopermission_user_5}</li>
-</ol>
-<br />
-{$lang->error_nopermission_user_username}';
-
-	$insert_array = array(
-		'title' => 'antispam_by_cleantalk_error_page',
-		'template' => $db->escape_string($template),
-		'sid' => '-1',
-		'version' => '',
-		'dateline' => time()
-	);
-
-	$db->insert_query('templates', $insert_array);
 
 	$db->query("CREATE TABLE IF NOT EXISTS ".TABLE_PREFIX."cleantalk_sfw (
 	    `network` int(11) unsigned NOT NULL,
@@ -222,3 +203,19 @@ function antispam_by_cleantalk_is_installed()
 	return false;
 }
 
+/**
+ * Refresh metadata when activating an existing installation after an update.
+ */
+function antispam_by_cleantalk_activate()
+{
+    global $db;
+
+    $description = antispam_by_cleantalk_access_key_description();
+    $db->update_query('settings', array('description' => $db->escape_string($description)), "name='antispam_by_cleantalk_accesskey'");
+    $db->delete_query('templates', "title='antispam_by_cleantalk_error_page'");
+}
+
+function antispam_by_cleantalk_access_key_description()
+{
+    return 'To get an access key, please register <a target="_blank" rel="noopener noreferrer" href="https://cleantalk.org/register?platform=mybb&amp;utm_source=mybb&amp;utm_medium=plugin">here</a>. <a target="_blank" rel="noopener noreferrer" href="https://cleantalk.org/my/bonuses">Free months for your review</a>.';
+}

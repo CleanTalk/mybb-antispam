@@ -138,6 +138,9 @@ function antispam_by_cleantalk_testcookies()
     if(isset($_COOKIE['ct_cookies_test'])){
 
         $cookie_test = json_decode(stripslashes($_COOKIE['ct_cookies_test']), true);
+        if (!is_array($cookie_test) || !isset($cookie_test['cookies_names'], $cookie_test['check_value']) || !is_array($cookie_test['cookies_names'])) {
+            return 0;
+        }
 
         $check_srting = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
         foreach($cookie_test['cookies_names'] as $cookie_name){
@@ -246,8 +249,8 @@ function antispam_by_cleantalk_spam_check($method, $params)
     $ct_request->submit_time = time() - intval($page_set_timestamp);
     $ct_request->sender_info = json_encode(array(
         'page_url' => htmlspecialchars(@$_SERVER['SERVER_NAME'].@$_SERVER['REQUEST_URI']),
-        'REFFERRER' => $_SERVER['HTTP_REFERER'],
-        'USER_AGENT' => $_SERVER['HTTP_USER_AGENT'],
+        'REFFERRER' => isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '',
+        'USER_AGENT' => isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '',
         'REFFERRER_PREVIOUS' => isset($_COOKIE['ct_prev_referer'])?$_COOKIE['ct_prev_referer']:0,
         'cookies_enabled' => antispam_by_cleantalk_testcookies(),
         'js_timezone' => $js_timezone,
@@ -277,15 +280,16 @@ function antispam_by_cleantalk_spam_check($method, $params)
 }
 function antispam_by_cleantalk_show_message($comment){
 
-    global $mybb, $templates, $lang;
+    global $mybb, $lang;
 
     if ($mybb->get_input('ajax', MyBB::INPUT_INT)){
         header("Content-type: application/json; charset={$lang->settings['charset']}");
         echo json_encode(array("errors" => array($comment)));
         exit;
     }
-    $lang->error_nopermission_user_username = $lang->sprintf("<h1 style='font-size: 15px; color: red;'>".$comment."</h1>");
-    eval("\$errorpage = \"".$templates->get("antispam_by_cleantalk_error_page")."\";");
+    $cleantalk_message = nl2br(htmlspecialchars_uni((string)$comment));
+    $template = file_get_contents(__DIR__ . '/blocked_message.html');
+    $errorpage = str_replace('{CLEANTALK_MESSAGE}', $cleantalk_message, $template);
     error($errorpage);
 
 }

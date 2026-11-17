@@ -5,7 +5,7 @@ Blocks spam registrations, spam threads and replies, and Contact Us spam. Cloud 
 
 > **Free months for your review.** Post a review about CleanTalk on a community platform (for example, a MyBB forum thread), then send us the link from your [CleanTalk dashboard > Bonuses](https://cleantalk.org/my/bonuses). We add free months to your annual license.
 
-![Settings](docs/mybb-settings.png)
+![Settings](assets/mybb-1-settings.png)
 
 ## What it protects
 - Registrations
@@ -25,7 +25,7 @@ Blocks spam registrations, spam threads and replies, and Contact Us spam. Cloud 
 
 You can now switch off MyBB image verification and security questions: CleanTalk does the job invisibly.
 
-![Spam registration blocked](docs/mybb-spam-blocked.png)
+![Spam registration blocked](assets/mybb-2-registration-blocked.png)
 
 ## Free Anti-Spam & Security Licenses for Developers
 

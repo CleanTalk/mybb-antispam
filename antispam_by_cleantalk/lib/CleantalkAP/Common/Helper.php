@@ -497,7 +497,7 @@ class Helper{
 		}
 		
 		// Preparing presets
-		$presets = is_array($presets) ? $presets : explode(' ', $presets);
+		$presets = is_array($presets) ? $presets : explode(' ', (string)$presets);
 		$curl_only = in_array( 'async', $presets ) ||
 		             in_array( 'dont_follow_redirects', $presets ) ||
 		             in_array( 'ssl', $presets ) ||
@@ -522,12 +522,12 @@ class Helper{
 					CURLOPT_TIMEOUT => 5,
 					CURLOPT_FORBID_REUSE => true,
 					CURLOPT_POST => true,
-					CURLOPT_SSL_VERIFYPEER => false,
-					CURLOPT_SSL_VERIFYHOST => 0,
+					CURLOPT_SSL_VERIFYPEER => true,
+					CURLOPT_SSL_VERIFYHOST => 2,
 					CURLOPT_FOLLOWLOCATION => true,
 					CURLOPT_MAXREDIRS => 5,
 					CURLOPT_USERAGENT => static::http__user_agent() . '; ' . ( ! empty( Server::get( 'SERVER_NAME' ) ) ? Server::get( 'SERVER_NAME' ) : 'UNKNOWN_HOST' ),
-					CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_0, // see http://stackoverflow.com/a/23322368
+					CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
 					CURLOPT_RETURNTRANSFER => true, // receive server response ...
 					CURLOPT_HTTPHEADER => array('Expect:'), // Fix for large data and old servers http://php.net/manual/ru/function.curl-setopt.php#82418
 				),
@@ -836,7 +836,7 @@ class Helper{
 	 * @return bool
 	 */
 	static public function is_regexp($regexp){
-		return @preg_match('/' . $regexp . '/', null) !== false;
+		return @preg_match('/' . $regexp . '/', '') !== false;
 	}
 
 	/**
