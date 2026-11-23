@@ -106,6 +106,17 @@ $tests = array(
         \CleantalkAP\Variables\Server::getInstance()->variables = array();
         $_SERVER['REQUEST_URI'] = '/member.php';
         check(antispam_by_cleantalk_check_exclusions_url() === false, 'Another page was excluded by a domain URL');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/member.php?action=do_register';
+        $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '/member.php?action=login, http://forum.example/member.php?action=login';
+        check(antispam_by_cleantalk_check_exclusions_url() === false, 'Login exclusion skipped registration');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/member.php?action=login&foo=1';
+        check(antispam_by_cleantalk_check_exclusions_url() === true, 'Login exclusion missed the login action');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/contact.php?action=do_contact';
+        $mybb->settings['antispam_by_cleantalk_exclusions_url'] = 'contact.php';
+        check(antispam_by_cleantalk_check_exclusions_url() === true, 'Path exclusion missed a request with a query');
         $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '';
         $_SERVER['REQUEST_URI'] = '/';
     },
@@ -115,8 +126,10 @@ $tests = array(
         $mybb->settings['bburl'] = 'http://forum.example/';
         $public = antispam_by_cleantalk_js_value();
         $remote = antispam_by_cleantalk_remote_token();
+        $board = 'http://forum.example';
         check($public === md5('local-test-key'), 'Public JS value changed');
-        check($remote === md5('local-test-keyhttp://forum.example'), 'Remote token does not use the board URL');
+        check($remote === hash_hmac('sha256', 'mybb-remote-call:' . $board, 'local-test-key'), 'Remote token derivation changed');
+        check($remote !== md5('local-test-key' . $board), 'Remote token matches the referer cookie');
         check($public !== $remote, 'Remote token matches the printed value');
         $mybb->settings['bburl'] = '';
         check(antispam_by_cleantalk_remote_token() === '', 'Empty board URL still produced a token');
@@ -161,6 +174,14 @@ $tests = array(
         $info = json_decode(antispam_by_cleantalk_post_info('contact_form'), true);
         check(is_array($info) && $info['comment_type'] === 'contact_form', 'Contact type was not set');
         check($info['post_url'] === 'http://forum.example/contact.php', 'Contact URL was not set');
+        $mybb->settings['bburl'] = 'https://forum.example/mybb';
+        $_SERVER['REQUEST_URI'] = '/mybb/contact.php';
+        $nested = json_decode(antispam_by_cleantalk_post_info('contact_form'), true);
+        check(is_array($nested) && $nested['post_url'] === 'https://forum.example/mybb/contact.php', 'Installation directory was repeated');
+        $mybb->settings['bburl'] = 'https://forum.example:8443/mybb';
+        $_SERVER['REQUEST_URI'] = '/contact.php';
+        $relative = json_decode(antispam_by_cleantalk_post_info('contact_form'), true);
+        check(is_array($relative) && $relative['post_url'] === 'https://forum.example:8443/mybb/contact.php', 'Board-relative URL lost its directory');
         $comment = json_decode(antispam_by_cleantalk_post_info('comment'), true);
         check(is_array($comment) && $comment['comment_type'] === 'comment', 'Post type was not set');
     },

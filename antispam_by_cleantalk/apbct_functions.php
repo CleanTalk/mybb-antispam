@@ -209,8 +209,8 @@ function antispam_by_cleantalk_js_value()
 }
 
 /**
- * Password for CleanTalk remote calls. Derived from the access key and board URL
- * so a value printed in page HTML cannot authorize a call.
+ * Password for CleanTalk remote calls.
+ * HMAC keeps it distinct from the public JavaScript hash and from the referer cookie test.
  */
 function antispam_by_cleantalk_remote_token()
 {
@@ -224,7 +224,7 @@ function antispam_by_cleantalk_remote_token()
         return '';
     }
 
-    return md5($key . $url);
+    return hash_hmac('sha256', 'mybb-remote-call:' . $url, $key);
 }
 
 /**
@@ -300,21 +300,41 @@ function antispam_by_cleantalk_safe_request_path($uri)
     return antispam_by_cleantalk_html($built);
 }
 
-function antispam_by_cleantalk_post_info($comment_type)
+function antispam_by_cleantalk_post_url()
 {
     global $mybb;
 
-    $post_url = '';
-    if (!empty($mybb->settings['bburl'])) {
-        $post_url = rtrim($mybb->settings['bburl'], '/');
-        if (!empty($_SERVER['REQUEST_URI'])) {
-            $post_url .= $_SERVER['REQUEST_URI'];
-        }
+    $bburl = isset($mybb->settings['bburl']) ? trim((string)$mybb->settings['bburl']) : '';
+    $request = isset($_SERVER['REQUEST_URI']) ? (string)$_SERVER['REQUEST_URI'] : '';
+    if ($request === '') {
+        return rtrim($bburl, '/');
+    }
+    if ($request[0] !== '/') {
+        $request = '/' . $request;
     }
 
+    $parts = parse_url($bburl);
+    if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+        return rtrim($bburl, '/') . $request;
+    }
+
+    $origin = $parts['scheme'] . '://' . $parts['host'];
+    if (!empty($parts['port'])) {
+        $origin .= ':' . (int)$parts['port'];
+    }
+    $base_path = isset($parts['path']) ? rtrim((string)$parts['path'], '/') : '';
+    if ($base_path !== '' && strpos($request, $base_path . '/') !== 0 && $request !== $base_path) {
+        return $origin . $base_path . $request;
+    }
+
+    return $origin . $request;
+}
+
+function antispam_by_cleantalk_post_info($comment_type)
+{
     return json_encode(array(
         'comment_type' => $comment_type,
-        'post_url' => $post_url,
+        'post_url' => antispam_by_cleantalk_post_url(),
     ));
 }
 
@@ -379,6 +399,57 @@ function antispam_by_cleantalk_exclusion_path($value)
     return $path;
 }
 
+/**
+ * Path plus the query constraints configured for one exclusion.
+ *
+ * @param string $value
+ * @return array
+ */
+function antispam_by_cleantalk_exclusion_rule($value)
+{
+    $value = trim(html_entity_decode((string)$value, ENT_QUOTES, 'UTF-8'));
+    $query = null;
+    if ($value !== '' && preg_match('#\A[a-z][a-z0-9+.-]*://#i', $value)) {
+        $parts = parse_url($value);
+        if (is_array($parts) && isset($parts['query']) && $parts['query'] !== '') {
+            parse_str($parts['query'], $query);
+        }
+    } elseif ($value !== '') {
+        $bare = preg_replace('/#.*$/', '', $value);
+        $query_pos = strpos($bare, '?');
+        if ($query_pos !== false) {
+            parse_str(substr($bare, $query_pos + 1), $query);
+        }
+    }
+    if ($query === array()) {
+        $query = null;
+    }
+
+    return array(
+        'path' => antispam_by_cleantalk_exclusion_path($value),
+        'query' => $query,
+    );
+}
+
+function antispam_by_cleantalk_exclusion_query_matches($expected, $actual)
+{
+    foreach ($expected as $name => $value) {
+        if (!array_key_exists($name, $actual)) {
+            return false;
+        }
+        $found = $actual[$name];
+        if (is_array($found) || is_array($value)) {
+            if ($found != $value) {
+                return false;
+            }
+        } elseif ((string)$found !== (string)$value) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function antispam_by_cleantalk_check_exclusions_url()
 {
     global $mybb;
@@ -386,16 +457,23 @@ function antispam_by_cleantalk_check_exclusions_url()
         return false;
     }
 
-    $request = antispam_by_cleantalk_exclusion_path(Server::get('REQUEST_URI'));
-    $request_path = '/' . ltrim($request, '/');
+    $request = antispam_by_cleantalk_exclusion_rule(Server::get('REQUEST_URI'));
+    $request_path = '/' . ltrim($request['path'], '/');
+    $request_query = is_array($request['query']) ? $request['query'] : array();
     $exclusions = explode( ',', $mybb->settings['antispam_by_cleantalk_exclusions_url'] );
     foreach ( $exclusions as $exclusion ) {
-        $path = antispam_by_cleantalk_exclusion_path($exclusion);
-        if ($path === '' || $path === '/') {
+        $rule = antispam_by_cleantalk_exclusion_rule($exclusion);
+        $path = '/' . ltrim($rule['path'], '/');
+        if ($rule['path'] === '' || ($path === '/' && !is_array($rule['query']))) {
             continue;
         }
-        $exclusion_path = '/' . ltrim($path, '/');
-        if ( stripos( $request_path, $exclusion_path ) !== false ){
+        if ($path !== '/' && stripos($request_path, $path) === false) {
+            continue;
+        }
+        if ($path === '/' && $request_path !== '/') {
+            continue;
+        }
+        if (!is_array($rule['query']) || antispam_by_cleantalk_exclusion_query_matches($rule['query'], $request_query)) {
             return true;
         }
     }

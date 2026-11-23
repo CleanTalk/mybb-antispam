@@ -2,6 +2,7 @@
 
 ## 1.7
 
+- Derive the remote-call password with HMAC so the referer cookie cannot reveal it. Keep query constraints in URL exclusions, and build post URLs without repeating the installation directory.
 - Separate the remote-call password from the public JavaScript value, accept SpamFireWall files only from CleanTalk, and cap remote-call delays at 10 seconds.
 - Escape the SpamFireWall block page, stop printing request headers, and show the SFW test page only to an administrator.
 - Stop JavaScript, SpamFireWall, cron, and remote calls when the plugin is switched off.
