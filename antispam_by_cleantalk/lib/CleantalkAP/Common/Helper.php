@@ -499,7 +499,6 @@ class Helper{
 		// Preparing presets
 		$presets = is_array($presets) ? $presets : explode(' ', (string)$presets);
 		$curl_only = in_array( 'async', $presets ) ||
-		             in_array( 'dont_follow_redirects', $presets ) ||
 		             in_array( 'ssl', $presets ) ||
 		             in_array( 'split_to_array', $presets )
 			? true : false;
@@ -604,23 +603,19 @@ class Helper{
 			
 		// Curl not installed. Trying file_get_contents()
 		}elseif( ini_get( 'allow_url_fopen' ) && ! $curl_only ){
-			
+
+			$context = static::http__stream_context( $presets, $data );
+
 			// Trying to get code via get_headers()
 			if( in_array( 'get_code', $presets ) ){
-				$headers = get_headers( $url );
-				$result  = (int) preg_replace( '/.*(\d{3}).*/', '$1', $headers[0] );
-				
+				$headers = @get_headers( $url, false, $context );
+				$result  = (is_array($headers) && isset($headers[0]))
+					? (int) preg_replace( '/.*(\d{3}).*/', '$1', $headers[0] )
+					: false;
+
 			// Making common request
 			}else{
-				$opts    = array(
-					'http' => array(
-						'method'  => in_array( 'get', $presets ) ? 'GET' : 'POST',
-						'timeout' => 5,
-						'content' => str_replace( "&amp;", "&", http_build_query( $data ) ),
-					),
-				);
-				$context = stream_context_create( $opts );
-				$result  = @file_get_contents( $url, 0, $context );
+				$result  = @file_get_contents( $url, false, $context );
 			}
 			
 			$out = $result === false
@@ -631,6 +626,38 @@ class Helper{
 			$out = array('error' => 'CURL not installed and allow_url_fopen is disabled');
 		
 		return $out;
+	}
+
+	/**
+	 * Stream context for hosts without cURL. Redirects stay disabled when requested.
+	 *
+	 * @param string|array $presets
+	 * @param array        $data
+	 *
+	 * @return resource
+	 */
+	static public function http__stream_context($presets, $data = array())
+	{
+		$presets = is_array($presets) ? $presets : explode(' ', (string)$presets);
+		$no_redirects = in_array('dont_follow_redirects', $presets, true);
+		$method = (in_array('get', $presets, true) || in_array('get_code', $presets, true)) ? 'GET' : 'POST';
+		$http = array(
+			'method' => $method,
+			'timeout' => 5,
+			'follow_location' => $no_redirects ? 0 : 1,
+			'max_redirects' => $no_redirects ? 0 : 5,
+		);
+		if ($method === 'POST') {
+			$http['content'] = str_replace('&amp;', '&', http_build_query($data));
+		}
+
+		return stream_context_create(array(
+			'http' => $http,
+			'ssl' => array(
+				'verify_peer' => true,
+				'verify_peer_name' => true,
+			),
+		));
 	}
 
 	/**

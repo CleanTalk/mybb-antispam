@@ -64,6 +64,9 @@ $tests = array(
     'optional HTTP presets accept null' => function () {
         $result = CleantalkAP\Common\Helper::http__request('http://127.0.0.1:1', array(), null, array(CURLOPT_CONNECTTIMEOUT_MS => 100, CURLOPT_TIMEOUT_MS => 100));
         check(is_array($result) && isset($result['error']), 'Expected a transport error without PHP warnings');
+        $options = stream_context_get_options(CleantalkAP\Common\Helper::http__stream_context(array('get_code', 'dont_follow_redirects')));
+        check($options['http']['follow_location'] === 0 && $options['http']['max_redirects'] === 0, 'Stream preflight still follows redirects');
+        check($options['http']['method'] === 'GET', 'Status preflight used the wrong method');
     },
     'blocked page contains only the CleanTalk message' => function () {
         try { antispam_by_cleantalk_show_message('*** Forbidden. Sender blacklisted. ***'); }
@@ -117,6 +120,14 @@ $tests = array(
         $_SERVER['REQUEST_URI'] = '/contact.php?action=do_contact';
         $mybb->settings['antispam_by_cleantalk_exclusions_url'] = 'contact.php';
         check(antispam_by_cleantalk_check_exclusions_url() === true, 'Path exclusion missed a request with a query');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/member.php?action=do_register&amp;action=login';
+        $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '/member.php?action=login';
+        check(antispam_by_cleantalk_check_exclusions_url() === false, 'Encoded action parameter bypassed registration');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/member.php?action=login&foo=1';
+        $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '/member.php?action=login&amp;foo=1';
+        check(antispam_by_cleantalk_check_exclusions_url() === true, 'Encoded exclusion was not decoded');
         $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '';
         $_SERVER['REQUEST_URI'] = '/';
     },

@@ -370,9 +370,12 @@ function antispam_by_cleantalk_get_options()
  * Check exclusions - URL
  * @return bool
  */
-function antispam_by_cleantalk_exclusion_path($value)
+function antispam_by_cleantalk_exclusion_path($value, $decode_entities = false)
 {
-    $value = trim(html_entity_decode((string)$value, ENT_QUOTES, 'UTF-8'));
+    $value = trim((string)$value);
+    if ($decode_entities) {
+        $value = trim(html_entity_decode($value, ENT_QUOTES, 'UTF-8'));
+    }
     if ($value === '') {
         return '';
     }
@@ -405,9 +408,12 @@ function antispam_by_cleantalk_exclusion_path($value)
  * @param string $value
  * @return array
  */
-function antispam_by_cleantalk_exclusion_rule($value)
+function antispam_by_cleantalk_exclusion_rule($value, $decode_entities = false)
 {
-    $value = trim(html_entity_decode((string)$value, ENT_QUOTES, 'UTF-8'));
+    $value = trim((string)$value);
+    if ($decode_entities) {
+        $value = trim(html_entity_decode($value, ENT_QUOTES, 'UTF-8'));
+    }
     $query = null;
     if ($value !== '' && preg_match('#\A[a-z][a-z0-9+.-]*://#i', $value)) {
         $parts = parse_url($value);
@@ -457,12 +463,12 @@ function antispam_by_cleantalk_check_exclusions_url()
         return false;
     }
 
-    $request = antispam_by_cleantalk_exclusion_rule(Server::get('REQUEST_URI'));
+    $request = antispam_by_cleantalk_exclusion_rule(Server::get('REQUEST_URI'), false);
     $request_path = '/' . ltrim($request['path'], '/');
     $request_query = is_array($request['query']) ? $request['query'] : array();
     $exclusions = explode( ',', $mybb->settings['antispam_by_cleantalk_exclusions_url'] );
     foreach ( $exclusions as $exclusion ) {
-        $rule = antispam_by_cleantalk_exclusion_rule($exclusion);
+        $rule = antispam_by_cleantalk_exclusion_rule($exclusion, true);
         $path = '/' . ltrim($rule['path'], '/');
         if ($rule['path'] === '' || ($path === '/' && !is_array($rule['query']))) {
             continue;
