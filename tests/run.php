@@ -97,7 +97,72 @@ $tests = array(
         check(antispam_by_cleantalk_check_exclusions_url() === true, 'Excluded URL was checked');
         $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '/member.php';
         check(antispam_by_cleantalk_check_exclusions_url() === false, 'Unrelated URL was excluded');
+        $mybb->settings['antispam_by_cleantalk_exclusions_url'] = 'contact.php, http://forum.example/contact.php, forum.example/contact.php';
+        check(antispam_by_cleantalk_check_exclusions_url() === true, 'URL without a domain was not excluded');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/contact.php?action=do_contact';
+        $mybb->settings['antispam_by_cleantalk_exclusions_url'] = 'http://mybb.loc/contact.php';
+        check(antispam_by_cleantalk_check_exclusions_url() === true, 'URL with a domain was not excluded');
+        \CleantalkAP\Variables\Server::getInstance()->variables = array();
+        $_SERVER['REQUEST_URI'] = '/member.php';
+        check(antispam_by_cleantalk_check_exclusions_url() === false, 'Another page was excluded by a domain URL');
         $mybb->settings['antispam_by_cleantalk_exclusions_url'] = '';
+        $_SERVER['REQUEST_URI'] = '/';
+    },
+    'remote call password is not the public javascript value' => function () {
+        global $mybb;
+        $mybb->settings['antispam_by_cleantalk_accesskey'] = 'local-test-key';
+        $mybb->settings['bburl'] = 'http://forum.example/';
+        $public = antispam_by_cleantalk_js_value();
+        $remote = antispam_by_cleantalk_remote_token();
+        check($public === md5('local-test-key'), 'Public JS value changed');
+        check($remote === md5('local-test-keyhttp://forum.example'), 'Remote token does not use the board URL');
+        check($public !== $remote, 'Remote token matches the printed value');
+        $mybb->settings['bburl'] = '';
+        check(antispam_by_cleantalk_remote_token() === '', 'Empty board URL still produced a token');
+        $mybb->settings['bburl'] = 'http://forum.example';
+    },
+    'remote delay is capped at ten seconds' => function () {
+        check(antispam_by_cleantalk_remote_delay(null) === 0, 'Missing delay was accepted');
+        check(antispam_by_cleantalk_remote_delay('nope') === 0, 'Text delay was accepted');
+        check(antispam_by_cleantalk_remote_delay(-5) === 0, 'Negative delay was accepted');
+        check(antispam_by_cleantalk_remote_delay(3) === 3, 'Small delay was changed');
+        check(antispam_by_cleantalk_remote_delay(3600) === 10, 'Large delay was not capped');
+    },
+    'firewall files are accepted only from CleanTalk' => function () {
+        check(antispam_by_cleantalk_is_cleantalk_file_url('https://apix21.cleantalk.org/store/list.csv.gz') === true, 'CleanTalk archive was rejected');
+        check(antispam_by_cleantalk_is_cleantalk_file_url('http://apix21.cleantalk.org/store/list.csv.gz') === false, 'Plain HTTP archive was accepted');
+        check(antispam_by_cleantalk_is_cleantalk_file_url('https://evil.example/list.csv.gz') === false, 'Foreign archive was accepted');
+        check(antispam_by_cleantalk_is_cleantalk_file_url('https://user:pass@apix21.cleantalk.org/list.csv.gz') === false, 'URL with credentials was accepted');
+        check(antispam_by_cleantalk_is_cleantalk_file_url('https://127.0.0.1/list.csv.gz') === false, 'IP archive was accepted');
+    },
+    'block page values are escaped and the test parameter is removed' => function () {
+        check(antispam_by_cleantalk_html('"><ctxss>') === '&quot;&gt;&lt;ctxss&gt;', 'HTML was not escaped');
+        $path = antispam_by_cleantalk_safe_request_path('/forum?sfw_test_ip=10.10.10.10&debug=1&x=%3Cctxss%3E');
+        check(strpos($path, 'sfw_test_ip') === false && strpos($path, 'debug') === false, 'Test parameters remained in the link');
+        check(strpos($path, '<ctxss>') === false, 'Raw markup remained in the link');
+    },
+    'disabled plugin does not print the javascript value' => function () {
+        global $mybb;
+        $mybb->settings['antispam_by_cleantalk_enabled'] = '0';
+        $mybb->settings['antispam_by_cleantalk_accesskey'] = 'local-test-key';
+        $mybb->settings['bburl'] = 'http://forum.example';
+        $page = antispam_by_cleantalk_add_js('<html><body>ok</body></html>');
+        check(strpos($page, 'ct_checkjs_val') === false, 'JS value was printed while disabled');
+        $mybb->settings['antispam_by_cleantalk_enabled'] = '1';
+        $page = antispam_by_cleantalk_add_js('<html><body>ok</body></html>');
+        check(strpos($page, antispam_by_cleantalk_remote_token()) === false, 'Remote token was printed');
+        check(strpos($page, antispam_by_cleantalk_js_value()) !== false, 'Public JS value is missing');
+    },
+    'contact submissions are marked as contact forms' => function () {
+        global $mybb;
+        $mybb->settings['bburl'] = 'http://forum.example';
+        $_SERVER['REQUEST_URI'] = '/contact.php';
+        $info = json_decode(antispam_by_cleantalk_post_info('contact_form'), true);
+        check(is_array($info) && $info['comment_type'] === 'contact_form', 'Contact type was not set');
+        check($info['post_url'] === 'http://forum.example/contact.php', 'Contact URL was not set');
+        $comment = json_decode(antispam_by_cleantalk_post_info('comment'), true);
+        check(is_array($comment) && $comment['comment_type'] === 'comment', 'Post type was not set');
     },
     'group exclusions bypass protection' => function () {
         global $mybb;

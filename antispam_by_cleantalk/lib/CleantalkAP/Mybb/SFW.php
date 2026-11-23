@@ -67,7 +67,9 @@ class SFW
         $this->table_prefix = TABLE_PREFIX;
         $this->data_table = $this->table_prefix . 'cleantalk_sfw';
         $this->db = $db;
-        $this->debug = Get::get('debug') === '1' ? true : false;
+        $this->debug = Get::get('debug') === '1'
+            && function_exists('antispam_by_cleantalk_is_admin')
+            && antispam_by_cleantalk_is_admin();
     }
 
     public function unversal_query($query, $straight_query = false)
@@ -101,9 +103,10 @@ class SFW
 
         $result = !empty($result) ? array('real' => $result) : array();
 
-        if( Get::get('sfw_test_ip') ){
-            if( Helper::ip__validate(Get::get('sfw_test_ip')) !== false ) {
-                $result['sfw_test'] = Get::get('sfw_test_ip');
+        if( Get::get('sfw_test_ip') && function_exists('antispam_by_cleantalk_is_admin') && antispam_by_cleantalk_is_admin() ){
+            $test_ip = (string) Get::get('sfw_test_ip');
+            if( Helper::ip__validate($test_ip) !== false ) {
+                $result['sfw_test'] = $test_ip;
                 $this->test = true;
             }
         }
@@ -146,7 +149,7 @@ class SFW
                         'ip'     => $current_ip,
                         'status' => 1,
                     );
-                    break;
+                    continue;
                 } else {
                     $this->pass = false;
                     $this->blocked_ips[$origin] = array(
@@ -221,7 +224,11 @@ class SFW
 
                 if( !empty($result['file_url']) ){
 
-                    if(Helper::http__request($result['file_url'], array(), 'get_code') === 200) {
+                    if(!$this->open_remote_gz_allowed($result['file_url'])){
+                        return array('error' => 'SFW_UPDATE_UNTRUSTED_FILE_URL');
+                    }
+
+                    if(Helper::http__request($result['file_url'], array(), array('get_code', 'dont_follow_redirects')) === 200) {
 
                         if(ini_get('allow_url_fopen')) {
 
@@ -243,7 +250,7 @@ class SFW
                                 }
                             }
 
-                            $gf = \gzopen($result['file_url'], 'rb');
+                            $gf = $this->open_remote_gz($result['file_url']);
 
                             if ($gf) {
 
@@ -257,7 +264,7 @@ class SFW
                                 return Helper::http__request(
                                     $mybb->settings['bburl'],
                                     array(
-                                        'spbc_remote_call_token'  => md5($ct_key),
+                                        'spbc_remote_call_token'  => antispam_by_cleantalk_remote_token(),
                                         'spbc_remote_call_action' => 'sfw_update',
                                         'plugin_name'             => 'apbct',
                                         'file_urls'               => implode(',', $file_urls),
@@ -276,9 +283,13 @@ class SFW
                 return $result;
         }else{
 
-            if(Helper::http__request($file_url, array(), 'get_code') === 200){ // Check if it's there
+            if(!$this->open_remote_gz_allowed($file_url)){
+                return array('error' => 'SFW_UPDATE_UNTRUSTED_FILE_URL');
+            }
 
-                $gf = \gzopen($file_url, 'rb');
+            if(Helper::http__request($file_url, array(), array('get_code', 'dont_follow_redirects')) === 200){ // Check if it's there
+
+                $gf = $this->open_remote_gz($file_url);
 
                 if($gf){
 
@@ -389,64 +400,56 @@ class SFW
             $sfw_die_page = str_replace('{SFW_COOKIE}', md5($this->blocked_ip . $api_key), $sfw_die_page);*/
 
             // Translation
-            $request_uri  = Server::get( 'REQUEST_URI' );
+            $real_ip = isset($this->all_ips['real']['ip']) ? $this->all_ips['real']['ip'] : '';
+            $test_ip = isset($this->all_ips['sfw_test']['ip']) ? $this->all_ips['sfw_test']['ip'] : '';
+            $real_status = isset($this->all_ips['real']['status']) ? $this->all_ips['real']['status'] : 1;
+            $test_status = isset($this->all_ips['sfw_test']['status']) ? $this->all_ips['sfw_test']['status'] : 1;
+            $blocked_ip = '';
+            if ($this->blocked_ips) {
+                $blocked = reset($this->blocked_ips);
+                $blocked_ip = isset($blocked['ip']) ? $blocked['ip'] : '';
+            }
+            $pass_cookie = (!$this->test && $blocked_ip !== '') ? md5($blocked_ip . $api_key) : '';
+            if (!preg_match('/\A[a-f0-9]{32}\z/', $pass_cookie)) {
+                $pass_cookie = '';
+            }
+            $cookie_prefix = preg_match('/\A[A-Za-z0-9_-]*\z/', (string)$cookie_prefix) ? (string)$cookie_prefix : '';
+            $cookie_domain = preg_match('/\A[A-Za-z0-9.-]*\z/', (string)$cookie_domain) ? (string)$cookie_domain : '';
+
             $sfw_die_page = str_replace('{SFW_DIE_NOTICE_IP}',              'SpamFireWall is activated for your IP ', $sfw_die_page);
             $sfw_die_page = str_replace('{SFW_DIE_MAKE_SURE_JS_ENABLED}',   'To continue working with web site, please make sure that you have enabled JavaScript.', $sfw_die_page);
             $sfw_die_page = str_replace('{SFW_DIE_CLICK_TO_PASS}',          'Please click below to pass protection,', $sfw_die_page);
-            $sfw_die_page = str_replace('{SFW_DIE_YOU_WILL_BE_REDIRECTED}', sprintf('Or you will be automatically redirected to the requested page after %d seconds.', 3), $sfw_die_page);
-            $sfw_die_page = str_replace('{CLEANTALK_TITLE}',                'Antispam by CleanTalk', $sfw_die_page);
-            $sfw_die_page = str_replace('{TEST_TITLE}',                     ($this->test ? 'This is the testing page for SpamFireWall' : ''), $sfw_die_page);
-
-            if($this->test){
-                $sfw_die_page = str_replace('{REAL_IP__HEADER}', 'Real IP:', $sfw_die_page);
-                $sfw_die_page = str_replace('{TEST_IP__HEADER}', 'Test IP:', $sfw_die_page);
-                $sfw_die_page = str_replace('{TEST_IP}', $this->all_ips['sfw_test']['ip'], $sfw_die_page);
-                $sfw_die_page = str_replace('{REAL_IP}', $this->all_ips['real']['ip'],     $sfw_die_page);
-                $sfw_die_page = str_replace('{TEST_IP_BLOCKED}', $this->all_ips['sfw_test']['status'] == 1 ? 'Passed' : 'Blocked', $sfw_die_page);
-                $sfw_die_page = str_replace('{REAL_IP_BLOCKED}', $this->all_ips['real']['status'] == 1 ? 'Passed' : 'Blocked',     $sfw_die_page);
-            }else{
-                $sfw_die_page = str_replace('{REAL_IP__HEADER}', '', $sfw_die_page);
-                $sfw_die_page = str_replace('{TEST_IP__HEADER}', '', $sfw_die_page);
-                $sfw_die_page = str_replace('{TEST_IP}', '', $sfw_die_page);
-                $sfw_die_page = str_replace('{REAL_IP}', '', $sfw_die_page);
-                $sfw_die_page = str_replace('{TEST_IP_BLOCKED}', '', $sfw_die_page);
-                $sfw_die_page = str_replace('{REAL_IP_BLOCKED}', '', $sfw_die_page);
-            }
-
-            $sfw_die_page = str_replace('{REMOTE_ADDRESS}', $this->blocked_ips ? $this->blocked_ips[key($this->blocked_ips)]['ip'] : '', $sfw_die_page);
-
-            // Service info
-            $sfw_die_page = str_replace('{REQUEST_URI}',    $request_uri,                    $sfw_die_page);
-            $sfw_die_page = str_replace('{COOKIE_PREFIX}',  $cookie_prefix,                  $sfw_die_page);
-            $sfw_die_page = str_replace('{COOKIE_DOMAIN}',  $cookie_domain,                  $sfw_die_page);
-            $sfw_die_page = str_replace('{SERVICE_ID}',     '',                      $sfw_die_page);
-            $sfw_die_page = str_replace('{HOST}',           Server::get( 'HTTP_HOST' ),      $sfw_die_page);
-
             $sfw_die_page = str_replace(
-                '{SFW_COOKIE}',
-                $this->test
-                    ? md5( $this->all_ips['sfw_test']['ip'] . $api_key )
-                    : md5( current(end($this->blocked_ips)) . $api_key ),
+                '{SFW_DIE_YOU_WILL_BE_REDIRECTED}',
+                $this->test ? '' : 'Or you will be automatically redirected to the requested page after 3 seconds.',
                 $sfw_die_page
             );
+            $sfw_die_page = str_replace('{CLEANTALK_TITLE}',                'Antispam by CleanTalk', $sfw_die_page);
+            $sfw_die_page = str_replace('{TEST_TITLE}',                     ($this->test ? 'This is the testing page for SpamFireWall' : ''), $sfw_die_page);
+            $sfw_die_page = str_replace('{REAL_IP__HEADER}', $this->test ? 'Real IP:' : '', $sfw_die_page);
+            $sfw_die_page = str_replace('{TEST_IP__HEADER}', $this->test ? 'Test IP:' : '', $sfw_die_page);
+            $sfw_die_page = str_replace('{TEST_IP}', antispam_by_cleantalk_html($this->test ? $test_ip : ''), $sfw_die_page);
+            $sfw_die_page = str_replace('{REAL_IP}', antispam_by_cleantalk_html($this->test ? $real_ip : ''), $sfw_die_page);
+            $sfw_die_page = str_replace('{TEST_IP_BLOCKED}', $this->test ? ($test_status == 1 ? 'Passed' : 'Blocked') : '', $sfw_die_page);
+            $sfw_die_page = str_replace('{REAL_IP_BLOCKED}', $this->test ? ($real_status == 1 ? 'Passed' : 'Blocked') : '', $sfw_die_page);
+            $sfw_die_page = str_replace('{REMOTE_ADDRESS}', antispam_by_cleantalk_html($blocked_ip), $sfw_die_page);
+            $sfw_die_page = str_replace('{REQUEST_URI}', antispam_by_cleantalk_safe_request_path(Server::get('REQUEST_URI')), $sfw_die_page);
+            $sfw_die_page = str_replace('{COOKIE_PREFIX}', $cookie_prefix, $sfw_die_page);
+            $sfw_die_page = str_replace('{COOKIE_DOMAIN}', $cookie_domain, $sfw_die_page);
+            $sfw_die_page = str_replace('{SERVICE_ID}', '', $sfw_die_page);
+            $sfw_die_page = str_replace('{HOST}', antispam_by_cleantalk_html(Server::get('HTTP_HOST')), $sfw_die_page);
+            $sfw_die_page = str_replace('{SFW_COOKIE}', $pass_cookie, $sfw_die_page);
+            $sfw_die_page = str_replace('{RUN_REDIRECT}', $this->test ? 'false' : 'true', $sfw_die_page);
+            $sfw_die_page = str_replace('{SET_PASS_COOKIE}', ($pass_cookie !== '' ? 'true' : 'false'), $sfw_die_page);
 
             if($this->debug){
-                $debug = '<h1>IP and Networks</h1>'
-                    . var_export($this->all_ips, true)
-                    .'<h1>Blocked IPs</h1>'
-                    . var_export($this->passed_ips, true)
-                    .'<h1>Passed IPs</h1>'
-                    . var_export($this->blocked_ips, true)
-                    . '<h1>Headers</h1>'
-                    . var_export(\apache_request_headers(), true)
-                    . '<h1>REMOTE_ADDR</h1>'
-                    . var_export(Server::get( 'REMOTE_ADDR' ), true)
-                    . '<h1>SERVER_ADDR</h1>'
-                    . var_export(Server::get( 'REMOTE_ADDR' ), true)
-                    . '<h1>IP_ARRAY</h1>'
-                    . var_export($this->ip_array, true)
-                    . '<h1>ADDITIONAL</h1>'
-                    . var_export($this->debug_data, true);
+                $debug = '<h1>IP and Networks</h1><pre>'
+                    . antispam_by_cleantalk_html(var_export($this->all_ips, true))
+                    . '</pre><h1>Blocked IPs</h1><pre>'
+                    . antispam_by_cleantalk_html(var_export($this->blocked_ips, true))
+                    . '</pre><h1>Passed IPs</h1><pre>'
+                    . antispam_by_cleantalk_html(var_export($this->passed_ips, true))
+                    . '</pre>';
             }else
                 $debug = '';
 
@@ -461,6 +464,48 @@ class SFW
             }
         }
 
+    }
+
+    private function open_remote_gz_allowed($url)
+    {
+        return function_exists('antispam_by_cleantalk_is_cleantalk_file_url')
+            && antispam_by_cleantalk_is_cleantalk_file_url($url);
+    }
+
+    /**
+     * Open a CleanTalk gzip archive without following redirects.
+     *
+     * @param string $url
+     * @return resource|false
+     */
+    private function open_remote_gz($url)
+    {
+        if (!$this->open_remote_gz_allowed($url)) {
+            return false;
+        }
+
+        $previous = stream_context_get_options(stream_context_get_default());
+        stream_context_set_default(array(
+            'http' => array(
+                'follow_location' => 0,
+                'timeout' => 20,
+            ),
+            'ssl' => array(
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ),
+        ));
+        $handle = gzopen($url, 'rb');
+        $restore = $previous;
+        if (!isset($restore['http']['follow_location'])) {
+            $restore['http']['follow_location'] = 1;
+        }
+        if (!isset($restore['http']['timeout'])) {
+            $restore['http']['timeout'] = (float) ini_get('default_socket_timeout');
+        }
+        stream_context_set_default($restore);
+
+        return $handle;
     }
 
 }

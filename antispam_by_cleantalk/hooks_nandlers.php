@@ -63,6 +63,10 @@ function antispam_by_cleantalk_set_global()
 {
     global $mybb;
 
+    if (!antispam_by_cleantalk_is_enabled()) {
+        return;
+    }
+
     // Set cookies
     antispam_by_cleantalk_setcookies();
 
@@ -71,7 +75,7 @@ function antispam_by_cleantalk_set_global()
     // SpamFireWall checking
     if ( $access_key != '' && $mybb->settings['antispam_by_cleantalk_sfw'] === '1' ) {
         // Run SFW except the remote calls and excluded URLs
-        if( Server::get('REQUEST_METHOD') == 'GET' && ( ! RemoteCalls::check() || ! antispam_by_cleantalk_check_exclusions_url() ) ) {
+        if( Server::get('REQUEST_METHOD') == 'GET' && ! RemoteCalls::check() && ! antispam_by_cleantalk_check_exclusions_url() ) {
             antispam_by_cleantalk_sfw_check();
         }
     }
@@ -109,13 +113,13 @@ function antispam_by_cleantalk_add_js($contents )
 {
     global $mybb;
 
-    if (trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '')
+    if (antispam_by_cleantalk_is_enabled() && trim($mybb->settings['antispam_by_cleantalk_accesskey']) != '')
     {
-        $ct_checkjs_val = md5(trim($mybb->settings['antispam_by_cleantalk_accesskey']));
+        $ct_checkjs_val = json_encode(antispam_by_cleantalk_js_value());
 
         $cleantalk_js_code =
             '<script><!--
-		    var ct_checkjs_val = \''.$ct_checkjs_val.'\', d = new Date(), 
+		    var ct_checkjs_val = '.$ct_checkjs_val.', d = new Date(), 
 				ctTimeMs = new Date().getTime(),
 				ctMouseEventTimerFlag = true, //Reading interval flag
 				ctMouseData = "[",
@@ -230,6 +234,7 @@ function antispam_by_cleantalk_trigger()
                 'message' => $mybb->get_input('message') . " \n\n" . $mybb->get_input('subject'),
                 'sender_email' => isset($mybb->user['email']) ? $mybb->user['email'] : '',
                 'sender_nickname' => isset($mybb->user['username']) ? $mybb->user['username'] : '',
+                'post_info' => antispam_by_cleantalk_post_info('comment'),
             )
         );
 
@@ -289,6 +294,7 @@ function antispam_by_cleantalk_contacttrigger()
             'message' => $mybb->get_input('message') . " \n\n" . $mybb->get_input('subject'),
             'sender_email' => $mybb->get_input('email'),
             'sender_nickname' => isset($mybb->user['username']) ? $mybb->user['username'] : '',
+            'post_info' => antispam_by_cleantalk_post_info('contact_form'),
         )
     );
     if ($ct_result->allow == 0)

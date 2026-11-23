@@ -96,7 +96,7 @@ function antispam_by_cleantalk_install()
 	$antispam_by_cleantalk_settings[] = Array(
 		'name'			=> "antispam_by_cleantalk_exclusions_url",
 		'title'			=> "URL exclusions",
-		'description'	=> "You could type here URL you want to exclude. Use comma as separator.",
+		'description'	=> antispam_by_cleantalk_url_exclusions_description(),
 		'optionscode'	=> "text",
 		'value'			=> "",
 		'disporder'		=> 4,
@@ -212,7 +212,14 @@ function antispam_by_cleantalk_activate()
 
     $description = antispam_by_cleantalk_access_key_description();
     $db->update_query('settings', array('description' => $db->escape_string($description)), "name='antispam_by_cleantalk_accesskey'");
+    $url_description = antispam_by_cleantalk_url_exclusions_description();
+    $db->update_query('settings', array('description' => $db->escape_string($url_description)), "name='antispam_by_cleantalk_exclusions_url'");
     $db->delete_query('templates', "title='antispam_by_cleantalk_error_page'");
+}
+
+function antispam_by_cleantalk_url_exclusions_description()
+{
+    return 'You can type here the URLs you want to exclude. Use a comma as a separator. URLs are accepted with or without the site domain.';
 }
 
 function antispam_by_cleantalk_access_key_description()
