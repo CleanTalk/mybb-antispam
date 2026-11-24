@@ -103,7 +103,7 @@ class SFW
 
         $result = !empty($result) ? array('real' => $result) : array();
 
-        if( Get::get('sfw_test_ip') && function_exists('antispam_by_cleantalk_is_admin') && antispam_by_cleantalk_is_admin() ){
+        if( Get::get('sfw_test_ip') ){
             $test_ip = (string) Get::get('sfw_test_ip');
             if( Helper::ip__validate($test_ip) !== false ) {
                 $result['sfw_test'] = $test_ip;

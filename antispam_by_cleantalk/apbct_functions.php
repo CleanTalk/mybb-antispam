@@ -91,7 +91,7 @@ function antispam_by_cleantalk_sfw_check()
     $sfw->ip_array = (array)$sfw->ip_get(array('real'), true);
     $access_key = trim($mybb->settings['antispam_by_cleantalk_accesskey']);
 
-    // A pass cookie belongs to the visitor IP. It must not hide an administrator's SFW test.
+    // A pass cookie belongs to the visitor IP. It must not hide an SFW test.
     if (!$sfw->test) {
         foreach($sfw->ip_array as $origin => $value)
         {

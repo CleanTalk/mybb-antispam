@@ -34,6 +34,18 @@ $mybb->settings = array(
 $mybb->usergroup = array('all_usergroups' => '2,6');
 function check($condition, $message) { if (!$condition) throw new RuntimeException($message); }
 $tests = array(
+    'disabled bot detector flag stays in the request' => function () {
+        $request = new CleantalkAP\Mybb\CleantalkRequest();
+        check($request->event_token_enabled === false, 'Bot detector flag must stay disabled');
+        $data = json_decode(json_encode($request), true);
+        $kept = array();
+        foreach ($data as $key => $value) {
+            if ($value !== null) {
+                $kept[$key] = $value;
+            }
+        }
+        check(array_key_exists('event_token_enabled', $kept) && $kept['event_token_enabled'] === false, 'Disabled bot detector flag was dropped');
+    },
     'optional text fields retain null' => function () {
         $ct = new CleantalkAP\Mybb\Cleantalk();
         check($ct->stringToUTF8(null) === null, 'Nullable request field changed');
