@@ -197,7 +197,7 @@ class Cleantalk {
      */
     private function compressData($data = null){
 
-        if (strlen($data) > $this->dataMaxSise && function_exists('gzencode') && function_exists('base64_encode')){
+        if ($data !== null && strlen($data) > $this->dataMaxSise && function_exists('gzencode') && function_exists('base64_encode')){
 
             $localData = gzencode($data, $this->compressRate, FORCE_GZIP);
 
@@ -253,7 +253,7 @@ class Cleantalk {
         // Removing non UTF8 characters from request, because non UTF8 or malformed characters break json_encode().
         //
         foreach ($request as $param => $value) {
-            if (!preg_match('//u', $value))
+            if ($value !== null && is_scalar($value) && !preg_match('//u', (string)$value))
                 $request->{$param} = 'Nulled. Not UTF8 encoded or malformed.';
         }
 
@@ -306,8 +306,8 @@ class Cleantalk {
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             // resolve 'Expect: 100-continue' issue
             curl_setopt($ch, CURLOPT_HTTPHEADER, array('Expect:'));
-            // see http://stackoverflow.com/a/23322368
-            curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+
+            curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
             // Disabling CA cert verivication
             // Disabling common name verification
@@ -354,7 +354,7 @@ class Cleantalk {
         if (!$result || !self::cleantalk_is_JSON($result)) {
             $response = null;
             $response['errno'] = 1;
-            $response['errstr'] = true;
+            $response['errstr'] = 'Invalid or unavailable moderation response';
             $response['curl_err'] = isset($curl_error) ? $curl_error : false;
             $response = json_decode(json_encode($response));
 
@@ -413,9 +413,9 @@ class Cleantalk {
             $msg->all_headers=json_encode($tmp);
         }
 
-        $si=(array)json_decode($msg->sender_info,true);
+        $si=(array)json_decode((string)$msg->sender_info,true);
 
-        $si['remote_addr'] = $_SERVER['REMOTE_ADDR'];
+        $si['remote_addr'] = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
         if(isset($_SERVER['X_FORWARDED_FOR'])) $msg->x_forwarded_for = $_SERVER['X_FORWARDED_FOR'];
         if(isset($_SERVER['X_REAL_IP']))       $msg->x_real_ip       = $_SERVER['X_REAL_IP'];
 
@@ -496,7 +496,7 @@ class Cleantalk {
      */
     public function get_servers_ip($host)
     {
-        $response = null;
+        $response = array();
         if (!isset($host))
             return $response;
 
@@ -532,7 +532,7 @@ class Cleantalk {
         } else {
             // $i - to resolve collisions with localhost
             $i = 0;
-            $r_temp = null;
+            $r_temp = array();
             $fast_server_found = false;
             foreach ($response as $server) {
 
@@ -546,7 +546,7 @@ class Cleantalk {
 
                 // -1 server is down, skips not reachable server
                 if ($ping != -1) {
-                    $r_temp[$ping + $i] = $server;
+                    $r_temp[(int)round($ping) + $i] = $server;
                 }
                 $i++;
 
@@ -657,7 +657,7 @@ class Cleantalk {
      * @return string
      */
     public function stringToUTF8($str, $data_codepage = null){
-        if (!preg_match('//u', $str) && function_exists('mb_detect_encoding') && function_exists('mb_convert_encoding'))
+        if ($str !== null && !preg_match('//u', $str) && function_exists('mb_detect_encoding') && function_exists('mb_convert_encoding'))
         {
 
             if ($data_codepage !== null)
@@ -678,7 +678,7 @@ class Cleantalk {
      * @return string
      */
     public function stringFromUTF8($str, $data_codepage = null){
-        if (preg_match('//u', $str) && function_exists('mb_convert_encoding') && $data_codepage !== null)
+        if ($str !== null && preg_match('//u', $str) && function_exists('mb_convert_encoding') && $data_codepage !== null)
         {
             return mb_convert_encoding($str, $data_codepage, 'UTF-8');
         }

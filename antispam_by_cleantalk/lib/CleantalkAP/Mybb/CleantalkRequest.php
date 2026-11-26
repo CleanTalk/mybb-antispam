@@ -158,6 +158,12 @@ class CleantalkRequest {
     public $method_name = 'check_message';
 
     /**
+     * MyBB has no bot detector. False tells the cloud not to apply that filter.
+     * @var bool
+     */
+    public $event_token_enabled = false;
+
+    /**
      * Fill params with constructor
      * @param type $params
      */

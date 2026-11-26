@@ -9,24 +9,26 @@ class RemoteCalls extends \CleantalkAP\Common\RemoteCalls
 {
 	public static function perform(){
 
-	    global $mybb;
-
         $remote_calls = array( 'close_renew_banner' => 0, 'update_plugin' => 0, 'sfw_update' => 0, 'sfw_send_logs' => 0 );
 
-		$action = strtolower(Get::get('spbc_remote_call_action'));
-		$token  = strtolower(Get::get('spbc_remote_call_token'));
+		$action = strtolower((string) Get::get('spbc_remote_call_action'));
+		$token  = strtolower((string) Get::get('spbc_remote_call_token'));
+		$expected = antispam_by_cleantalk_remote_token();
 
 		if ( array_key_exists( $action, $remote_calls ) ) {
 
-            // Check API key
-            if( $token == md5(trim($mybb->settings['antispam_by_cleantalk_accesskey'])) ){
+            // The public JavaScript value is not accepted here.
+            if( $expected !== '' && strlen($token) === strlen($expected) && hash_equals($expected, $token) ){
 
                 $action = 'action__'.$action;
 
                 // Common actions
                 if( method_exists( '\CleantalkAP\Mybb\RemoteCalls', $action ) ){
 
-                    sleep( (int) Get::get('delay') ); // Delay before perform action;
+                    $delay = antispam_by_cleantalk_remote_delay(Get::get('delay'));
+                    if ($delay > 0) {
+                        sleep($delay);
+                    }
                     $out = self::$action();
 
                 }else
